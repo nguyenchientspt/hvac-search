@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -48,11 +49,6 @@
         .autocomplete-option { display: block; width: 100%; padding: 7px 10px; border: 0; border-bottom: 1px solid #383838; background: transparent; color: #eee; text-align: left; font-size: 12px; cursor: pointer; }
         .autocomplete-option:hover, .autocomplete-option.active { background: #094771; color: #fff; }
 
-        .spec-checklist-container { background: #1e1e1e; border: 1px solid #444; border-radius: 4px; height: 160px; overflow-y: auto; padding: 5px; }
-        .spec-item { display: flex; align-items: center; gap: 8px; padding: 4px 5px; cursor: pointer; border-radius: 3px; font-size: 12px; color: #ddd; }
-        .spec-item:hover { background: #333; }
-        .spec-item input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
-
         .btn-search-pdf { background: var(--accent); color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; text-transform: uppercase; margin-top: 3px;}
         .btn-search-pdf:hover { background: #005a9e; }
         .btn-search-excel { background: var(--excel-green); color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; text-transform: uppercase; margin-top: 3px;}
@@ -61,8 +57,28 @@
         .btn-search-word:hover { filter: brightness(1.2); }
 
         .search-status-bar { background: #202022; border: 1px solid #333; border-radius: 4px; padding: 8px; font-size: 11px; color: #5bc0be; display: none; }
+        
+        /* Dynamic Checklist Params UI */
         .toggle-links { font-size: 11px; font-weight: normal; }
-        .toggle-links span { cursor: pointer; text-decoration: underline; margin-left: 5px; }
+        .toggle-links span { cursor: pointer; text-decoration: underline; margin-left: 5px; color: var(--accent); }
+        .toggle-links span.danger { color: #d9534f; }
+        
+        .add-param-box { display: flex; gap: 6px; margin-bottom: 8px; margin-top: 5px; }
+        .add-param-box input[type="text"] { flex: 1; padding: 6px 8px; background: #1e1e1e; border: 1px solid var(--border); color: #fff; border-radius: 4px; font-size: 12px; outline: none; }
+        .add-param-box input[type="text"]:focus { border-color: var(--accent); }
+        .btn-add-param { background: var(--accent); color: white; border: none; cursor: pointer; padding: 0 10px; font-weight: bold; border-radius: 4px; font-size: 15px; }
+        .btn-add-param:hover { background: #005a9e; }
+
+        .param-list-container { background: #1e1e1e; border: 1px solid var(--border); border-radius: 4px; height: 160px; overflow-y: auto; padding: 5px; }
+        .param-list-container::-webkit-scrollbar { width: 6px; }
+        .param-list-container::-webkit-scrollbar-track { background: #1e1e1e; border-radius: 4px; }
+        .param-list-container::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+        .param-item { display: flex; align-items: center; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #2d2d30; }
+        .param-item:last-child { border-bottom: none; }
+        .param-label { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; color: #ddd; font-size: 12px; }
+        .param-item input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
+        .btn-del-param { background: transparent; color: #777; border: none; font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 3px; }
+        .btn-del-param:hover { color: #fff; background: #d9534f; }
         
         /* Results Pane */
         .results-pane { width: 450px; min-width: 320px; max-width: 750px; background: #202020; display: flex; flex-direction: column; overflow: hidden; }
@@ -136,7 +152,6 @@
             <button class="btn-upload" id="restoreSourcesBtn" onclick="restoreSavedSources(true)" style="display:none;background:#555">↻ Kết nối lại nguồn đã lưu</button>
             <button class="btn-upload" id="folderFallbackBtn" onclick="document.getElementById('folderPicker').click()" style="display:none;background:#555">📁 Chọn folder tạm thời</button>
             <button class="btn-upload" id="excelFallbackBtn" onclick="document.getElementById('officePicker').click()" style="display:none;background:#555">📄 Chọn lại file Office</button>
-            <button class="btn-upload" onclick="clearCachedSources()" style="background:#444;" title="Xóa nhớ nguồn cũ">🗑️ Đặt lại nguồn</button>
             <select id="docTypeSelect" class="doc-type-dropdown" onchange="applyAllFilters()" disabled>
                 <option value="ALL">🗂️ -- Tất cả PDF --</option>
             </select>
@@ -186,11 +201,19 @@
                 <div style="display: flex; justify-content: space-between; align-items: flex-end;">
                     <label>Chọn thông số cần hiển thị:</label>
                     <div class="toggle-links">
-                        <span style="color: var(--accent);" onclick="toggleAllSpecs(true)">[Tất cả]</span>
-                        <span style="color: #d9534f;" onclick="toggleAllSpecs(false)">[Bỏ hết]</span>
+                        <span onclick="toggleAllParams(true)">[Tất cả]</span>
+                        <span class="danger" onclick="toggleAllParams(false)">[Bỏ hết]</span>
                     </div>
                 </div>
-                <div class="spec-checklist-container" id="specChecklistUI"></div>
+                
+                <div class="add-param-box">
+                    <input type="text" id="txtNewParam" placeholder="Thêm tiêu chí: Vd Máy nén">
+                    <button class="btn-add-param" onclick="addNewParam()">+</button>
+                </div>
+                
+                <div class="param-list-container" id="listParamsHtml">
+                    <!-- Danh sách động nạp từ JS -->
+                </div>
             </div>
             <button class="btn-search-excel" onclick="extractExcelOnly()">📊 Trích Xuất Bảng Spec Excel</button>
 
@@ -256,6 +279,135 @@
         let renderTasks = {}; let pdfTextCache = {}; let parsedPdfDocCache = {};
         let excelDataSheets = []; let wordDataFiles = [];
 
+        /* ================= BỘ QUẢN LÝ DANH SÁCH THÔNG SỐ (PARAMS) ĐỘNG ================= */
+        const defaultSpecParams = [
+            { id: "p1", name: "Công suất làm lạnh (Btu/h)", keys: ["capacity cooling", "công suất lạnh", "công suất làm lạnh", "làm lạnh", "cooling capacity", "btu/h"], checked: true, deletable: false },
+            { id: "p2", name: "Công suất làm lạnh (kW)", keys: ["capacity cooling", "công suất lạnh", "công suất làm lạnh", "làm lạnh", "cooling capacity", "kw"], checked: true, deletable: false },
+            { id: "p3", name: "Điện năng tiêu thụ làm lạnh (kW)", keys: ["power input cooling", "tiêu thụ lạnh", "điện năng làm lạnh", "điện năng tiêu thụ làm lạnh", "công suất điện", "power consumption", "điện năng tiêu thụ"], checked: true, deletable: false },
+            { id: "p4", name: "Điện năng tiêu thụ sưởi", keys: ["power input heating", "tiêu thụ sưởi", "điện năng tiêu thụ sưởi", "tiêu thụ sưởi"], checked: false, deletable: true },
+            { id: "p5", name: "Lưu lượng gió", keys: ["air flow", "lưu lượng gió", "lưu lượng gió lớn nhất", "airflow", "lưu lượng"], checked: true, deletable: true },
+            { id: "p6", name: "Độ ồn, dB(A)", keys: ["spl", "sound", "noise", "độ ồn", "độ ồn (mức cao nhất)"], checked: true, deletable: true },
+            { id: "p7", name: "Kích thước (Dàn lạnh/nóng)", keys: ["kích thước", "kích thước dàn lạnh", "kích thước dàn nóng", "dimensions", "dimentions"], checked: true, deletable: true },
+            { id: "p8", name: "Áp suất tĩnh (ESP)", keys: ["esp", "áp suất tĩnh", "áp suất tĩnh ngoài", "áp suất tĩnh ngoài lớn nhất", "static pressure"], checked: false, deletable: true },
+            { id: "p9", name: "Trọng lượng (kg)", keys: ["weight", "trọng lượng", "trọng lượng dàn lạnh", "trọng lượng dàn nóng", "khối lượng"], checked: false, deletable: true },
+            { id: "p10", name: "Kích thước ống (Gas/Liquid)", keys: ["piping", "ống", "kết nối ống", "kết nối ống lỏng", "kết nối ống hơi", "gas", "liquid"], checked: false, deletable: true },
+            { id: "p11", name: "Độ nâng bơm nước xả", keys: ["bơm", "bơm nước xả", "độ nâng của bơm nước xả", "drain"], checked: false, deletable: true },
+            { id: "p12", name: "CSPF / COP", keys: ["cspf", "cop", "eer"], checked: false, deletable: true },
+            { id: "p13", name: "Máy nén", keys: ["compressor", "máy nén"], checked: false, deletable: true },
+            { id: "p14", name: "Loại máy", keys: ["type", "loại", "loại máy"], checked: false, deletable: true },
+            { id: "p15", name: "Nguồn Điện", keys: ["power supply", "nguồn", "voltage"], checked: false, deletable: true }
+        ];
+
+        let userSpecParams = [];
+
+        function initParamsManager() {
+            const savedData = localStorage.getItem("HVACSearch_SpecParams_v1");
+            if (savedData) {
+                try {
+                    userSpecParams = JSON.parse(savedData);
+                } catch(e) {
+                    userSpecParams = JSON.parse(JSON.stringify(defaultSpecParams));
+                }
+            } else {
+                userSpecParams = JSON.parse(JSON.stringify(defaultSpecParams));
+            }
+            renderParamsUI();
+        }
+
+        function renderParamsUI() {
+            let htmlContent = "";
+            for (let i = 0; i < userSpecParams.length; i++) {
+                const p = userSpecParams[i];
+                const checkStr = p.checked ? "checked" : "";
+                const delBtnHtml = p.deletable !== false ? `<button class="btn-del-param" onclick="deleteParam('${p.id}')">✖</button>` : "";
+                htmlContent += `
+                <div class="param-item">
+                    <label class="param-label">
+                        <input type="checkbox" id="${p.id}" ${checkStr} onchange="updateParamState('${p.id}', this.checked)">
+                        ${p.name}
+                    </label>
+                    ${delBtnHtml}
+                </div>`;
+            }
+            const container = document.getElementById("listParamsHtml");
+            if (container) container.innerHTML = htmlContent;
+        }
+
+        function saveDataToLocalStorage() {
+            localStorage.setItem("HVACSearch_SpecParams_v1", JSON.stringify(userSpecParams));
+        }
+
+        function updateParamState(pID, isChecked) {
+            for (let i = 0; i < userSpecParams.length; i++) {
+                if (userSpecParams[i].id === pID) {
+                    userSpecParams[i].checked = isChecked;
+                    break;
+                }
+            }
+            saveDataToLocalStorage();
+            // Automatically re-extract if tab is currently on Excel spec to apply real-time unchecking logic safely.
+            const selectedModel = document.getElementById('modelInput').value.trim();
+            if (selectedModel && document.getElementById('btnTabExcel').classList.contains('active')) {
+                 extractExcelOnly();
+            }
+        }
+
+        function addNewParam() {
+            const inputBox = document.getElementById("txtNewParam");
+            const newName = inputBox.value.trim();
+            if (newName === "") return;
+            for(let i=0; i<userSpecParams.length; i++) {
+                if(userSpecParams[i].name.toLowerCase() === newName.toLowerCase()) {
+                    alert("Thông số này đã có trong danh sách!"); return;
+                }
+            }
+            const objNew = { id: "p_cus_" + new Date().getTime(), name: newName, keys: [newName], checked: true, deletable: true };
+            userSpecParams.splice(0, 0, objNew); 
+            inputBox.value = ""; 
+            saveDataToLocalStorage();
+            renderParamsUI();
+            
+            const listElement = document.getElementById("listParamsHtml");
+            listElement.scrollTop = 0;
+        }
+
+        function deleteParam(pID) {
+            if(!confirm("Bạn có chắc chắn muốn xóa thông số này ra khỏi thiết lập hiển thị?")) return;
+            userSpecParams = userSpecParams.filter(p => p.id !== pID);
+            saveDataToLocalStorage();
+            renderParamsUI();
+            
+            const selectedModel = document.getElementById('modelInput').value.trim();
+            if (selectedModel && document.getElementById('btnTabExcel').classList.contains('active')) {
+                 extractExcelOnly();
+            }
+        }
+
+        function toggleAllParams(boolVal) {
+            for (let i = 0; i < userSpecParams.length; i++) { userSpecParams[i].checked = boolVal; }
+            saveDataToLocalStorage();
+            renderParamsUI();
+        }
+
+        function getActiveExcelFilterKeys() {
+            let activeKeys = [];
+            userSpecParams.forEach(p => {
+                if (p.checked && p.keys) activeKeys = activeKeys.concat(p.keys);
+            });
+            return [...new Set(activeKeys.filter(Boolean))];
+        }
+
+        setTimeout(() => {
+            const txtNewParam = document.getElementById('txtNewParam');
+            if (txtNewParam) {
+                txtNewParam.addEventListener("keypress", function(event) {
+                    if (event.key === "Enter") { event.preventDefault(); addNewParam(); }
+                });
+            }
+        }, 100);
+
+        window.addEventListener("DOMContentLoaded", initParamsManager);
+
         /* ================= TỪ ĐIỂN HVAC CHUẨN XÁC ================= */
         const hvacDictionary = {
             "electric": ["electric", "electrical", "characteristics", "power supply", "điện", "nguồn điện"],
@@ -277,32 +429,19 @@
             "trọng lượng": ["trọng lượng", "trọng lượng dàn lạnh", "trọng lượng dàn nóng", "khối lượng", "weight", "mass", "kg"]
         };
 
-        const excelSpecFilters = [
-            { id: "cslanh", label: "Công suất làm lạnh (kW)", keys: ["capacity cooling", "công suất lạnh", "công suất làm lạnh", "làm lạnh", "cooling capacity"] },
-            { id: "cssuoi", label: "Công suất sưởi (kW)", keys: ["capacity heating", "công suất sưởi", "heating capacity"] },
-            { id: "dienlanh", label: "Điện năng tiêu thụ làm lạnh", keys: ["power input cooling", "tiêu thụ lạnh", "điện năng làm lạnh", "điện năng tiêu thụ làm lạnh", "công suất điện", "power consumption", "điện năng tiêu thụ"] },
-            { id: "diensuoi", label: "Điện năng tiêu thụ sưởi", keys: ["power input heating", "tiêu thụ sưởi", "điện năng tiêu thụ sưởi", "tiêu thụ sưởi"] },
-            { id: "luuluong", label: "Lưu lượng gió", keys: ["air flow", "lưu lượng gió", "lưu lượng gió lớn nhất", "airflow", "lưu lượng"] },
-            { id: "doon", label: "Độ ồn, dB(A)", keys: ["spl", "sound", "noise", "độ ồn", "độ ồn (mức cao nhất)"] },
-            { id: "kichthuoc", label: "Kích thước (Dàn lạnh/nóng)", keys: ["kích thước", "kích thước dàn lạnh", "kích thước dàn nóng", "dimensions", "dimentions"] },
-            { id: "esp", label: "Áp suất tĩnh (ESP)", keys: ["esp", "áp suất tĩnh", "áp suất tĩnh ngoài", "áp suất tĩnh ngoài lớn nhất", "static pressure"] },
-            { id: "trongluong", label: "Trọng lượng (kg)", keys: ["weight", "trọng lượng", "trọng lượng dàn lạnh", "trọng lượng dàn nóng", "khối lượng"] },
-            { id: "ong", label: "Kích thước ống (Gas/Liquid)", keys: ["piping", "ống", "kết nối ống", "kết nối ống lỏng", "kết nối ống hơi", "gas", "liquid"] },
-            { id: "bom", label: "Độ nâng bơm nước xả", keys: ["bơm", "bơm nước xả", "độ nâng của bơm nước xả", "drain"] },
-            { id: "cspf", label: "CSPF / COP", keys: ["cspf", "cop", "eer"] },
-            { id: "maynen", label: "Máy nén", keys: ["compressor", "máy nén"] },
-            { id: "loai", label: "Loại máy", keys: ["type", "loại", "loại máy"] },
-            { id: "nguon", label: "Nguồn Điện", keys: ["power supply", "nguồn", "voltage"] }
-        ];
 
-        /* ================= BỘ LÀM SẠCH NHÃN & GIÁ TRỊ SPEC ================= */
+        /* ================= BỘ LÀM SẠCH NHÃN & GIÁ TRỊ SPEC CHUẨN XÁC ================= */
+        // 1. Chỉ giữ lại 1 đơn vị duy nhất ở nhãn (xóa trùng lặp: (kW) (kW), dB(A) dB(A)...)
         function cleanSpecLabel(label) {
             if (!label) return "";
             let s = String(label).trim().replace(/\s+/g, ' ');
+
+            // Xóa cụm đơn vị trong ngoặc bị lặp: (kW) (kW) -> (kW)
             s = s.replace(/\(([^)]+)\)[\s,]*\(\1\)/gi, '($1)');
             s = s.replace(/\(([^)]+)\)[\s,]+\1\b/gi, '($1)');
             s = s.replace(/\b([a-zA-Z0-9³/]+)[\s,]+\(\1\)/gi, '($1)');
 
+            // Xóa các đơn vị HVAC bị lặp phổ biến
             const commonUnits = [
                 'kW', 'kw', 'W', 'w', 'HP', 'hp', 'BTU/h', 'Btu/h', 'BTU',
                 'm³/phút', 'm3/phút', 'm³/h', 'm3/h', 'm³/s', 'l/s', 'CFM', 'cfm',
@@ -319,17 +458,28 @@
                 const dupWord = new RegExp(`\\b${u}[\\s,]+${u}\\b`, 'gi');
                 s = s.replace(dupWord, u.replace(/\\/g, ''));
             }
+
             return s.replace(/,\s*,/g, ',').replace(/\s+,/g, ',').replace(/,\s*$/g, '').trim();
         }
 
+        // 2. Cột thông số (bên phải): CHỈ LẤY SỐ, BỎ HOÀN TOÀN ĐƠN VỊ VÀ DẤU SO SÁNH
         function cleanSpecValue(val) {
             if (val === undefined || val === null) return '';
             let s = String(val).trim();
             if (!s) return '';
+
+            // Xóa các dấu so sánh ở đầu (≥, ≤, >, <, =, ~, ±)
             s = s.replace(/^[≥≤><=~±\s]+/, '').trim();
+
+            // Xóa các đơn vị trong ngoặc: (kW), (m³/phút), (dB(A))...
             s = s.replace(/\s*\(\s*(?:kW|kw|W|w|HP|hp|m³\/phút|m3\/phút|m³\/h|m3\/h|m³\/s|CFM|cfm|dB\(A\)|dBA|dB|kg|g|mm|cm|m|Pa|kPa|bar|V|Hz|A|COP|CSPF|EER|BTU\/h|Btu\/h)\s*\)/gi, '');
+
+            // Xóa các đơn vị đứng sau: 0.029 kW -> 0.029, 30 dB(A) -> 30
             s = s.replace(/\s*(?:kW|kw|W|w|HP|hp|m³\/phút|m3\/phút|m³\/h|m3\/h|m³\/s|CFM|cfm|dB\(A\)|dBA|dB|kg|g|mm|cm|Pa|kPa|bar|V|Hz|A|COP|CSPF|EER|BTU\/h|Btu\/h)\b/gi, '');
+
+            // Xóa dấu ngoặc bao quanh nếu còn sót: "(2.8)" -> "2.8"
             s = s.replace(/^\(([^)]+)\)$/, '$1');
+
             return s.trim();
         }
 
@@ -371,6 +521,7 @@
             if (normalized.includes("ong dong") || normalized.includes("ong long") || normalized.includes("ong hoi") || normalized.includes("piping") || normalized.includes("pipe")) {
                 return ["ống đồng", "kết nối ống", "kết nối ống lỏng", "kết nối ống hơi", "đường ống", "piping", "gas pipe", "liquid pipe"];
             }
+
             return expandBilingualTermsFast(query);
         }
 
@@ -477,34 +628,10 @@
                 'lưu lượng gió', 'áp suất tĩnh', 'áp suất tĩnh ngoài', 'độ ồn', 'kích thước', 'trọng lượng',
                 'kết nối ống', 'độ nâng của bơm nước xả', 'cspf', 'máy nén',
                 ...Object.keys(hvacDictionary), ...Object.values(hvacDictionary).flat(),
-                ...excelSpecFilters.flatMap(spec => [spec.label, ...spec.keys])
+                ...userSpecParams.flatMap(spec => [spec.name, ...(spec.keys || [])])
             ];
             setDatalistOptions('queryDatalist', terms);
             setDatalistOptions('officeQueryDatalist', terms);
-        }
-
-        function initSpecChecklist() {
-            const container = document.getElementById('specChecklistUI');
-            excelSpecFilters.forEach(spec => {
-                let div = document.createElement('label'); div.className = 'spec-item';
-                div.innerHTML = `<input type="checkbox" class="spec-chk" value="${spec.id}" checked> ${spec.label}`;
-                container.appendChild(div);
-            });
-        }
-        initSpecChecklist();
-        refreshAutocompleteSuggestions();
-
-        function toggleAllSpecs(checked) {
-            document.querySelectorAll('.spec-chk').forEach(cb => cb.checked = checked);
-        }
-
-        function getActiveExcelFilterKeys() {
-            let activeKeys = [];
-            document.querySelectorAll('.spec-chk:checked').forEach(cb => {
-                const specObj = excelSpecFilters.find(s => s.id === cb.value);
-                if (specObj) activeKeys = activeKeys.concat(specObj.keys);
-            });
-            return [...new Set(activeKeys.filter(Boolean))];
         }
 
         function switchTab(tabId) {
@@ -516,7 +643,7 @@
         }
 
         const SOURCE_DB = 'hvac-smart-search-sources';
-        let sourceFolderHandle = null, excelFileHandles = [], lastSourceSignature = '', temporaryExcelNames = [], temporaryFolderFiles = false, temporaryFolderName = '';
+        let sourceFolderHandle = null, excelFileHandles = [], sourceRefreshTimer = null, lastSourceSignature = '', temporaryExcelNames = [], temporaryFolderFiles = false, temporaryFolderName = '';
         const supportsPersistentPickers = !!(window.showDirectoryPicker && window.showOpenFilePicker && window.indexedDB);
 
         function openSourceDb() {
@@ -528,44 +655,24 @@
             });
         }
         async function saveSourceHandle(key, value) {
-            try {
-                const db = await openSourceDb();
-                await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(value, key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
-                db.close();
-            } catch(e){}
+            const db = await openSourceDb();
+            await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(value, key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+            db.close();
         }
         async function loadSourceHandle(key) {
-            try {
-                const db = await openSourceDb();
-                const value = await new Promise((resolve, reject) => { const request = db.transaction('handles').objectStore('handles').get(key); request.onsuccess = () => resolve(request.result || null); request.onerror = () => reject(request.error); });
-                db.close(); return value;
-            } catch(e){ return null; }
+            const db = await openSourceDb();
+            const value = await new Promise((resolve, reject) => { const request = db.transaction('handles').objectStore('handles').get(key); request.onsuccess = () => resolve(request.result || null); request.onerror = () => reject(request.error); });
+            db.close(); return value;
         }
         async function removeSourceHandle(key) {
-            try {
-                const db = await openSourceDb();
-                await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').delete(key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close();
-            } catch(e){}
-        }
-        async function clearCachedSources() {
-            try {
-                await removeSourceHandle('pdf-folder');
-                await removeSourceHandle('excel-files');
-                sourceFolderHandle = null;
-                excelFileHandles = [];
-                allMasterFiles = [];
-                excelDataSheets = [];
-                updateStatusUI('Đã xóa bộ nhớ nguồn cũ.');
-                alert('Đã xóa nguồn cũ thành công! Bây giờ bạn có thể bấm nút 1 và nút 2 để nạp lại nguồn mới.');
-            } catch(e){}
+            const db = await openSourceDb();
+            await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').delete(key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close();
         }
         async function ensureHandlePermission(handle, requestPermission) {
             if (!handle) return false;
-            try {
-                let permission = await handle.queryPermission({mode:'read'});
-                if (permission !== 'granted' && requestPermission) permission = await handle.requestPermission({mode:'read'});
-                return permission === 'granted';
-            } catch(e) { return false; }
+            let permission = await handle.queryPermission({mode:'read'});
+            if (permission !== 'granted' && requestPermission) permission = await handle.requestPermission({mode:'read'});
+            return permission === 'granted';
         }
 
         function updateStatusUI(message = '') {
@@ -635,47 +742,26 @@
             updateStatusUI();
         }
 
-        /* TỐI ƯU: Bọc try/catch từng file để file lỗi/file OneDrive không làm ngắt ứng dụng */
         async function collectPdfFiles(directoryHandle, prefix = '') {
             const files = [];
-            try {
-                for await (const [name, entry] of directoryHandle.entries()) {
-                    if (name.startsWith('~') || name.startsWith('.')) continue; // Bỏ qua file tạm Office
-                    const path = prefix ? `${prefix}/${name}` : name;
-                    try {
-                        if (entry.kind === 'directory') {
-                            files.push(...await collectPdfFiles(entry, path));
-                        } else if (name.toLowerCase().endsWith('.pdf')) {
-                            const file = await entry.getFile();
-                            Object.defineProperty(file, 'webkitRelativePath', {value:`${directoryHandle.name}/${path}`});
-                            files.push(file);
-                        }
-                    } catch (fileErr) {
-                        // Tự động bỏ qua file nếu file bị lock hoặc chưa tải về từ OneDrive
-                        continue;
-                    }
+            for await (const [name, entry] of directoryHandle.entries()) {
+                const path = prefix ? `${prefix}/${name}` : name;
+                if (entry.kind === 'directory') files.push(...await collectPdfFiles(entry, path));
+                else if (name.toLowerCase().endsWith('.pdf')) {
+                    const file = await entry.getFile();
+                    Object.defineProperty(file, 'webkitRelativePath', {value:`${directoryHandle.name}/${path}`});
+                    files.push(file);
                 }
-            } catch(e){}
+            }
             return files;
         }
 
         async function parseExcelHandles(handles = excelFileHandles) {
             const sheets = [];
             for (const handle of handles) {
-                try {
-                    const file = await handle.getFile();
-                    if (file.name.startsWith('~')) continue;
-                    const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type:'array'});
-                    for (const sheetName of workbook.SheetNames) {
-                        sheets.push({
-                            sheetName:`${file.name} · ${sheetName}`,
-                            data:XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1, defval:''}),
-                            worksheet:workbook.Sheets[sheetName]
-                        });
-                    }
-                } catch(e) {
-                    continue; // Bỏ qua file Excel bị lỗi
-                }
+                const file = await handle.getFile();
+                const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type:'array'});
+                for (const sheetName of workbook.SheetNames) sheets.push({sheetName:`${file.name} · ${sheetName}`, data:XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1, defval:''}), worksheet:workbook.Sheets[sheetName]});
             }
             excelDataSheets = sheets;
         }
@@ -683,20 +769,34 @@
         async function refreshSourceFiles(force = false) {
             if (!sourceFolderHandle && !excelFileHandles.length) return;
             try {
+                const deniedSources = [];
                 const folderGranted = sourceFolderHandle ? await ensureHandlePermission(sourceFolderHandle, false) : false;
+                if (sourceFolderHandle && !folderGranted) deniedSources.push(sourceFolderHandle.name);
                 const accessibleExcelHandles = [];
                 for (const handle of excelFileHandles) {
                     if (await ensureHandlePermission(handle, false)) accessibleExcelHandles.push(handle);
+                    else deniedSources.push(handle.name);
                 }
                 const pdfFiles = folderGranted ? await collectPdfFiles(sourceFolderHandle) : [];
+                const excelSignatureParts = [];
+                for (const handle of accessibleExcelHandles) { const file = await handle.getFile(); excelSignatureParts.push(`${handle.name}:${file.size}:${file.lastModified}`); }
+                const effectivePdfFiles = folderGranted ? pdfFiles : temporaryFolderFiles ? allMasterFiles : [];
+                const signature = [`folder-access:${folderGranted}`, ...effectivePdfFiles.map(file => `${file.webkitRelativePath}:${file.size}:${file.lastModified}`), ...excelSignatureParts, ...deniedSources.map(name => `denied:${name}`)].sort().join('|');
+                if (!force && signature === lastSourceSignature) return;
+                const changed = !!lastSourceSignature && signature !== lastSourceSignature;
                 if (folderGranted || !temporaryFolderFiles) allMasterFiles = pdfFiles;
                 pdfTextCache = {}; parsedPdfDocCache = {}; currentPdfDoc = null;
                 if (accessibleExcelHandles.length || !temporaryExcelNames.length) await parseExcelHandles(accessibleExcelHandles);
                 configureDocumentTypeFilter(); applyAllFilters(); refreshAutocompleteSuggestions();
-                updateStatusUI('Nguồn đã sẵn sàng.');
-            } catch (error) { 
-                updateStatusUI('Đã nạp xong.'); 
-            }
+                lastSourceSignature = signature;
+                document.getElementById('restoreSourcesBtn').style.display=deniedSources.length ? 'inline-block' : 'none';
+                document.getElementById('folderFallbackBtn').style.display=deniedSources.some(name => name === sourceFolderHandle?.name) ? 'inline-block' : 'none';
+                document.getElementById('excelFallbackBtn').style.display=deniedSources.some(name => excelFileHandles.some(handle => handle.name === name)) ? 'inline-block' : 'none';
+                const accessMessage = deniedSources.length
+                    ? `Chưa được cấp quyền: ${deniedSources.join(', ')}.`
+                    : changed ? `Nguồn thay đổi — đã cập nhật lúc ${new Date().toLocaleTimeString()}.` : 'Nguồn đã sẵn sàng.';
+                updateStatusUI(accessMessage);
+            } catch (error) { updateStatusUI(`Không đọc được nguồn: ${error.message}`); }
         }
 
         async function choosePdfFolder() {
@@ -706,17 +806,17 @@
                 temporaryFolderFiles = false; temporaryFolderName = '';
                 await saveSourceHandle('pdf-folder', sourceFolderHandle);
                 document.getElementById('folderFallbackBtn').style.display='none';
-                await refreshSourceFiles(true);
-            } catch (error) { 
-                if (error.name !== 'AbortError') { 
-                    document.getElementById('folderFallbackBtn').style.display='inline-block'; 
-                    updateStatusUI(`Dùng “Chọn folder tạm thời” nếu trình duyệt chưa hỗ trợ.`); 
-                } 
-            }
+                await refreshSourceFiles(true); startSourceRefresh();
+            } catch (error) { if (error.name !== 'AbortError') { document.getElementById('folderFallbackBtn').style.display='inline-block'; updateStatusUI(`Không được cấp quyền folder. Dùng “Chọn folder tạm thời” để tiếp tục.`); } }
         }
 
         async function chooseExcelFiles() {
             document.getElementById('officePicker').click();
+        }
+
+        function startSourceRefresh() {
+            if (sourceRefreshTimer) clearInterval(sourceRefreshTimer);
+            sourceRefreshTimer = setInterval(() => refreshSourceFiles(false), 20000);
         }
 
         async function restoreSavedSources(requestPermission) {
@@ -728,12 +828,10 @@
                 }
                 if (!sourceFolderHandle && !excelFileHandles.length) return;
                 const handles = [sourceFolderHandle, ...excelFileHandles].filter(Boolean);
-                if (requestPermission) {
-                    await Promise.all(handles.map(handle => handle.requestPermission({mode:'read'})));
-                } else {
-                    await Promise.all(handles.map(handle => handle.queryPermission({mode:'read'})));
-                }
-                await refreshSourceFiles(true);
+                const permissionResults = requestPermission
+                    ? await Promise.all(handles.map(handle => handle.requestPermission({mode:'read'})))
+                    : await Promise.all(handles.map(handle => handle.queryPermission({mode:'read'})));
+                await refreshSourceFiles(true); startSourceRefresh();
             } catch (error) {
                 document.getElementById('restoreSourcesBtn').style.display='inline-block';
             }
@@ -743,7 +841,7 @@
             sourceFolderHandle = null; temporaryFolderFiles = true; 
             temporaryFolderName = event.target.files[0]?.webkitRelativePath.split('/')[0] || 'Folder đã chọn'; 
             removeSourceHandle('pdf-folder');
-            allMasterFiles = Array.from(event.target.files).filter(file => file.name.toLowerCase().endsWith('.pdf') && !file.name.startsWith('~'));
+            allMasterFiles = Array.from(event.target.files).filter(file => file.name.toLowerCase().endsWith('.pdf'));
             document.getElementById('folderFallbackBtn').style.display='none';
             pdfTextCache = {}; parsedPdfDocCache = {}; 
             configureDocumentTypeFilter(); 
@@ -755,8 +853,8 @@
         async function handleOfficeSelect(event) {
             const files = Array.from(event.target.files || []);
             if (!files.length) return;
-            const excelFiles = files.filter(file => /\.(xlsx|xls|xlsm|xlsb|ods|csv)$/i.test(file.name) && !file.name.startsWith('~'));
-            const wordFiles = files.filter(file => /\.docx$/i.test(file.name) && !file.name.startsWith('~'));
+            const excelFiles = files.filter(file => /\.(xlsx|xls|xlsm|xlsb|ods|csv)$/i.test(file.name));
+            const wordFiles = files.filter(file => /\.docx$/i.test(file.name));
             sheets = []; docs = [];
             try {
                 for (const file of excelFiles) {
@@ -781,7 +879,7 @@
                 refreshAutocompleteSuggestions();
                 updateStatusUI(`Đã nạp ${sheets.length} sheet Excel.`);
             } catch (error) {
-                updateStatusUI(`Đã nạp dữ liệu.`);
+                updateStatusUI(`Lỗi nạp file Office: ${error.message}`);
             }
         }
 
@@ -935,6 +1033,7 @@
                 let cellVal = String(matrix[r]?.[c] || "").trim();
                 if (!cellVal) continue;
                 
+                // Tránh trường hợp cột B lặp lại cùng đơn vị của cột A
                 const normCell = normalizeExcelSearchText(cellVal);
                 const isDup = labelParts.some(part => {
                     const normPart = normalizeExcelSearchText(part);
@@ -1143,7 +1242,7 @@
                 : `Tìm thấy ${excelHits} vị trí trong Excel và ${wordHits} vị trí trong văn bản.`;
         }
 
-        /* ================= TRÍCH XUẤT SPEC ================= */
+        /* ================= TRÍCH XUẤT SPEC (CHỈ ĐIỀN SỐ, 1 ĐƠN VỊ DUY NHẤT) ================= */
         function extractExcelSpec(modelClean) {
             if (!modelClean || excelDataSheets.length === 0) return null;
             let specData = [];
@@ -1190,6 +1289,7 @@
                         const normalizedLabel = normalizeExcelSearchText(fullLabel);
                         if (normalizedLabel === "thong so don vi" || normalizedLabel === "thong so" || normalizedLabel === "don vi") continue;
 
+                        // So khớp từ nguyên vẹn để từ "ống" không ăn nhầm vào chữ "thông"
                         let isMatch = activeKeywords.some(kw => {
                             const words = normalizeExcelSearchText(kw).split(' ').filter(Boolean);
                             return words.length > 0 && words.every(w => {
@@ -1202,6 +1302,7 @@
                             const cleanVal = cleanSpecValue(valStr);
                             const cleanLbl = cleanSpecLabel(fullLabel);
 
+                            // Lọc chống trùng lặp dòng thông số
                             const exists = currentParams.some(p => p.label.toLowerCase() === cleanLbl.toLowerCase());
                             if (!exists && cleanVal) {
                                 currentParams.push({ label: cleanLbl, value: cleanVal });
@@ -1245,13 +1346,13 @@
                 return;
             }
 
-            const checkedBoxes = document.querySelectorAll('.spec-chk:checked');
-            if (checkedBoxes.length === 0) {
+            const activeCheckedCount = userSpecParams.filter(p => p.checked).length;
+            if (activeCheckedCount === 0) {
                 switchTab('tabExcel');
                 tabExcel.innerHTML = `
                     <div style="text-align:center; margin-top:30px; padding:20px; background:#2d2d30; border-radius:6px; border:1px solid #ff9800;">
                         <p style="color:#ff9800; font-weight:bold; font-size:14px;">⚠️ Bạn chưa chọn thông số nào cần hiển thị!</p>
-                        <p style="color:#ccc; font-size:12px; margin-top:8px;">Hãy tích chọn các thông số ở Bước 3 (hoặc bấm <b style="color:var(--accent); cursor:pointer;" onclick="toggleAllSpecs(true); extractExcelOnly();">[Tất cả]</b>) rồi bấm trích xuất lại.</p>
+                        <p style="color:#ccc; font-size:12px; margin-top:8px;">Hãy tích chọn các thông số ở Bước 3 (hoặc bấm <b style="color:var(--accent); cursor:pointer;" onclick="toggleAllParams(true); extractExcelOnly();">[Tất cả]</b>) rồi bấm trích xuất lại.</p>
                     </div>`;
                 statusBar.style.display = 'block';
                 statusBar.innerHTML = '⚠️ Chưa chọn thông số cần hiển thị.';
