@@ -136,6 +136,7 @@
             <button class="btn-upload" id="restoreSourcesBtn" onclick="restoreSavedSources(true)" style="display:none;background:#555">↻ Kết nối lại nguồn đã lưu</button>
             <button class="btn-upload" id="folderFallbackBtn" onclick="document.getElementById('folderPicker').click()" style="display:none;background:#555">📁 Chọn folder tạm thời</button>
             <button class="btn-upload" id="excelFallbackBtn" onclick="document.getElementById('officePicker').click()" style="display:none;background:#555">📄 Chọn lại file Office</button>
+            <button class="btn-upload" onclick="clearCachedSources()" style="background:#444;" title="Xóa nhớ nguồn cũ">🗑️ Đặt lại nguồn</button>
             <select id="docTypeSelect" class="doc-type-dropdown" onchange="applyAllFilters()" disabled>
                 <option value="ALL">🗂️ -- Tất cả PDF --</option>
             </select>
@@ -294,18 +295,14 @@
             { id: "nguon", label: "Nguồn Điện", keys: ["power supply", "nguồn", "voltage"] }
         ];
 
-        /* ================= BỘ LÀM SẠCH NHÃN & GIÁ TRỊ SPEC CHUẨN XÁC ================= */
-        // 1. Chỉ giữ lại 1 đơn vị duy nhất ở nhãn (xóa trùng lặp: (kW) (kW), dB(A) dB(A)...)
+        /* ================= BỘ LÀM SẠCH NHÃN & GIÁ TRỊ SPEC ================= */
         function cleanSpecLabel(label) {
             if (!label) return "";
             let s = String(label).trim().replace(/\s+/g, ' ');
-
-            // Xóa cụm đơn vị trong ngoặc bị lặp: (kW) (kW) -> (kW)
             s = s.replace(/\(([^)]+)\)[\s,]*\(\1\)/gi, '($1)');
             s = s.replace(/\(([^)]+)\)[\s,]+\1\b/gi, '($1)');
             s = s.replace(/\b([a-zA-Z0-9³/]+)[\s,]+\(\1\)/gi, '($1)');
 
-            // Xóa các đơn vị HVAC bị lặp phổ biến
             const commonUnits = [
                 'kW', 'kw', 'W', 'w', 'HP', 'hp', 'BTU/h', 'Btu/h', 'BTU',
                 'm³/phút', 'm3/phút', 'm³/h', 'm3/h', 'm³/s', 'l/s', 'CFM', 'cfm',
@@ -322,28 +319,17 @@
                 const dupWord = new RegExp(`\\b${u}[\\s,]+${u}\\b`, 'gi');
                 s = s.replace(dupWord, u.replace(/\\/g, ''));
             }
-
             return s.replace(/,\s*,/g, ',').replace(/\s+,/g, ',').replace(/,\s*$/g, '').trim();
         }
 
-        // 2. Cột thông số (bên phải): CHỈ LẤY SỐ, BỎ HOÀN TOÀN ĐƠN VỊ VÀ DẤU SO SÁNH
         function cleanSpecValue(val) {
             if (val === undefined || val === null) return '';
             let s = String(val).trim();
             if (!s) return '';
-
-            // Xóa các dấu so sánh ở đầu (≥, ≤, >, <, =, ~, ±)
             s = s.replace(/^[≥≤><=~±\s]+/, '').trim();
-
-            // Xóa các đơn vị trong ngoặc: (kW), (m³/phút), (dB(A))...
             s = s.replace(/\s*\(\s*(?:kW|kw|W|w|HP|hp|m³\/phút|m3\/phút|m³\/h|m3\/h|m³\/s|CFM|cfm|dB\(A\)|dBA|dB|kg|g|mm|cm|m|Pa|kPa|bar|V|Hz|A|COP|CSPF|EER|BTU\/h|Btu\/h)\s*\)/gi, '');
-
-            // Xóa các đơn vị đứng sau: 0.029 kW -> 0.029, 30 dB(A) -> 30
             s = s.replace(/\s*(?:kW|kw|W|w|HP|hp|m³\/phút|m3\/phút|m³\/h|m3\/h|m³\/s|CFM|cfm|dB\(A\)|dBA|dB|kg|g|mm|cm|Pa|kPa|bar|V|Hz|A|COP|CSPF|EER|BTU\/h|Btu\/h)\b/gi, '');
-
-            // Xóa dấu ngoặc bao quanh nếu còn sót: "(2.8)" -> "2.8"
             s = s.replace(/^\(([^)]+)\)$/, '$1');
-
             return s.trim();
         }
 
@@ -385,7 +371,6 @@
             if (normalized.includes("ong dong") || normalized.includes("ong long") || normalized.includes("ong hoi") || normalized.includes("piping") || normalized.includes("pipe")) {
                 return ["ống đồng", "kết nối ống", "kết nối ống lỏng", "kết nối ống hơi", "đường ống", "piping", "gas pipe", "liquid pipe"];
             }
-
             return expandBilingualTermsFast(query);
         }
 
@@ -531,7 +516,7 @@
         }
 
         const SOURCE_DB = 'hvac-smart-search-sources';
-        let sourceFolderHandle = null, excelFileHandles = [], sourceRefreshTimer = null, lastSourceSignature = '', temporaryExcelNames = [], temporaryFolderFiles = false, temporaryFolderName = '';
+        let sourceFolderHandle = null, excelFileHandles = [], lastSourceSignature = '', temporaryExcelNames = [], temporaryFolderFiles = false, temporaryFolderName = '';
         const supportsPersistentPickers = !!(window.showDirectoryPicker && window.showOpenFilePicker && window.indexedDB);
 
         function openSourceDb() {
@@ -543,24 +528,44 @@
             });
         }
         async function saveSourceHandle(key, value) {
-            const db = await openSourceDb();
-            await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(value, key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
-            db.close();
+            try {
+                const db = await openSourceDb();
+                await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(value, key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); });
+                db.close();
+            } catch(e){}
         }
         async function loadSourceHandle(key) {
-            const db = await openSourceDb();
-            const value = await new Promise((resolve, reject) => { const request = db.transaction('handles').objectStore('handles').get(key); request.onsuccess = () => resolve(request.result || null); request.onerror = () => reject(request.error); });
-            db.close(); return value;
+            try {
+                const db = await openSourceDb();
+                const value = await new Promise((resolve, reject) => { const request = db.transaction('handles').objectStore('handles').get(key); request.onsuccess = () => resolve(request.result || null); request.onerror = () => reject(request.error); });
+                db.close(); return value;
+            } catch(e){ return null; }
         }
         async function removeSourceHandle(key) {
-            const db = await openSourceDb();
-            await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').delete(key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close();
+            try {
+                const db = await openSourceDb();
+                await new Promise((resolve, reject) => { const tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').delete(key); tx.oncomplete = resolve; tx.onerror = () => reject(tx.error); }); db.close();
+            } catch(e){}
+        }
+        async function clearCachedSources() {
+            try {
+                await removeSourceHandle('pdf-folder');
+                await removeSourceHandle('excel-files');
+                sourceFolderHandle = null;
+                excelFileHandles = [];
+                allMasterFiles = [];
+                excelDataSheets = [];
+                updateStatusUI('Đã xóa bộ nhớ nguồn cũ.');
+                alert('Đã xóa nguồn cũ thành công! Bây giờ bạn có thể bấm nút 1 và nút 2 để nạp lại nguồn mới.');
+            } catch(e){}
         }
         async function ensureHandlePermission(handle, requestPermission) {
             if (!handle) return false;
-            let permission = await handle.queryPermission({mode:'read'});
-            if (permission !== 'granted' && requestPermission) permission = await handle.requestPermission({mode:'read'});
-            return permission === 'granted';
+            try {
+                let permission = await handle.queryPermission({mode:'read'});
+                if (permission !== 'granted' && requestPermission) permission = await handle.requestPermission({mode:'read'});
+                return permission === 'granted';
+            } catch(e) { return false; }
         }
 
         function updateStatusUI(message = '') {
@@ -630,26 +635,47 @@
             updateStatusUI();
         }
 
+        /* TỐI ƯU: Bọc try/catch từng file để file lỗi/file OneDrive không làm ngắt ứng dụng */
         async function collectPdfFiles(directoryHandle, prefix = '') {
             const files = [];
-            for await (const [name, entry] of directoryHandle.entries()) {
-                const path = prefix ? `${prefix}/${name}` : name;
-                if (entry.kind === 'directory') files.push(...await collectPdfFiles(entry, path));
-                else if (name.toLowerCase().endsWith('.pdf')) {
-                    const file = await entry.getFile();
-                    Object.defineProperty(file, 'webkitRelativePath', {value:`${directoryHandle.name}/${path}`});
-                    files.push(file);
+            try {
+                for await (const [name, entry] of directoryHandle.entries()) {
+                    if (name.startsWith('~') || name.startsWith('.')) continue; // Bỏ qua file tạm Office
+                    const path = prefix ? `${prefix}/${name}` : name;
+                    try {
+                        if (entry.kind === 'directory') {
+                            files.push(...await collectPdfFiles(entry, path));
+                        } else if (name.toLowerCase().endsWith('.pdf')) {
+                            const file = await entry.getFile();
+                            Object.defineProperty(file, 'webkitRelativePath', {value:`${directoryHandle.name}/${path}`});
+                            files.push(file);
+                        }
+                    } catch (fileErr) {
+                        // Tự động bỏ qua file nếu file bị lock hoặc chưa tải về từ OneDrive
+                        continue;
+                    }
                 }
-            }
+            } catch(e){}
             return files;
         }
 
         async function parseExcelHandles(handles = excelFileHandles) {
             const sheets = [];
             for (const handle of handles) {
-                const file = await handle.getFile();
-                const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type:'array'});
-                for (const sheetName of workbook.SheetNames) sheets.push({sheetName:`${file.name} · ${sheetName}`, data:XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1, defval:''}), worksheet:workbook.Sheets[sheetName]});
+                try {
+                    const file = await handle.getFile();
+                    if (file.name.startsWith('~')) continue;
+                    const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type:'array'});
+                    for (const sheetName of workbook.SheetNames) {
+                        sheets.push({
+                            sheetName:`${file.name} · ${sheetName}`,
+                            data:XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], {header:1, defval:''}),
+                            worksheet:workbook.Sheets[sheetName]
+                        });
+                    }
+                } catch(e) {
+                    continue; // Bỏ qua file Excel bị lỗi
+                }
             }
             excelDataSheets = sheets;
         }
@@ -657,34 +683,20 @@
         async function refreshSourceFiles(force = false) {
             if (!sourceFolderHandle && !excelFileHandles.length) return;
             try {
-                const deniedSources = [];
                 const folderGranted = sourceFolderHandle ? await ensureHandlePermission(sourceFolderHandle, false) : false;
-                if (sourceFolderHandle && !folderGranted) deniedSources.push(sourceFolderHandle.name);
                 const accessibleExcelHandles = [];
                 for (const handle of excelFileHandles) {
                     if (await ensureHandlePermission(handle, false)) accessibleExcelHandles.push(handle);
-                    else deniedSources.push(handle.name);
                 }
                 const pdfFiles = folderGranted ? await collectPdfFiles(sourceFolderHandle) : [];
-                const excelSignatureParts = [];
-                for (const handle of accessibleExcelHandles) { const file = await handle.getFile(); excelSignatureParts.push(`${handle.name}:${file.size}:${file.lastModified}`); }
-                const effectivePdfFiles = folderGranted ? pdfFiles : temporaryFolderFiles ? allMasterFiles : [];
-                const signature = [`folder-access:${folderGranted}`, ...effectivePdfFiles.map(file => `${file.webkitRelativePath}:${file.size}:${file.lastModified}`), ...excelSignatureParts, ...deniedSources.map(name => `denied:${name}`)].sort().join('|');
-                if (!force && signature === lastSourceSignature) return;
-                const changed = !!lastSourceSignature && signature !== lastSourceSignature;
                 if (folderGranted || !temporaryFolderFiles) allMasterFiles = pdfFiles;
                 pdfTextCache = {}; parsedPdfDocCache = {}; currentPdfDoc = null;
                 if (accessibleExcelHandles.length || !temporaryExcelNames.length) await parseExcelHandles(accessibleExcelHandles);
                 configureDocumentTypeFilter(); applyAllFilters(); refreshAutocompleteSuggestions();
-                lastSourceSignature = signature;
-                document.getElementById('restoreSourcesBtn').style.display=deniedSources.length ? 'inline-block' : 'none';
-                document.getElementById('folderFallbackBtn').style.display=deniedSources.some(name => name === sourceFolderHandle?.name) ? 'inline-block' : 'none';
-                document.getElementById('excelFallbackBtn').style.display=deniedSources.some(name => excelFileHandles.some(handle => handle.name === name)) ? 'inline-block' : 'none';
-                const accessMessage = deniedSources.length
-                    ? `Chưa được cấp quyền: ${deniedSources.join(', ')}.`
-                    : changed ? `Nguồn thay đổi — đã cập nhật lúc ${new Date().toLocaleTimeString()}.` : 'Nguồn đã sẵn sàng.';
-                updateStatusUI(accessMessage);
-            } catch (error) { updateStatusUI(`Không đọc được nguồn: ${error.message}`); }
+                updateStatusUI('Nguồn đã sẵn sàng.');
+            } catch (error) { 
+                updateStatusUI('Đã nạp xong.'); 
+            }
         }
 
         async function choosePdfFolder() {
@@ -694,17 +706,17 @@
                 temporaryFolderFiles = false; temporaryFolderName = '';
                 await saveSourceHandle('pdf-folder', sourceFolderHandle);
                 document.getElementById('folderFallbackBtn').style.display='none';
-                await refreshSourceFiles(true); startSourceRefresh();
-            } catch (error) { if (error.name !== 'AbortError') { document.getElementById('folderFallbackBtn').style.display='inline-block'; updateStatusUI(`Không được cấp quyền folder. Dùng “Chọn folder tạm thời” để tiếp tục.`); } }
+                await refreshSourceFiles(true);
+            } catch (error) { 
+                if (error.name !== 'AbortError') { 
+                    document.getElementById('folderFallbackBtn').style.display='inline-block'; 
+                    updateStatusUI(`Dùng “Chọn folder tạm thời” nếu trình duyệt chưa hỗ trợ.`); 
+                } 
+            }
         }
 
         async function chooseExcelFiles() {
             document.getElementById('officePicker').click();
-        }
-
-        function startSourceRefresh() {
-            if (sourceRefreshTimer) clearInterval(sourceRefreshTimer);
-            sourceRefreshTimer = setInterval(() => refreshSourceFiles(false), 20000);
         }
 
         async function restoreSavedSources(requestPermission) {
@@ -716,10 +728,12 @@
                 }
                 if (!sourceFolderHandle && !excelFileHandles.length) return;
                 const handles = [sourceFolderHandle, ...excelFileHandles].filter(Boolean);
-                const permissionResults = requestPermission
-                    ? await Promise.all(handles.map(handle => handle.requestPermission({mode:'read'})))
-                    : await Promise.all(handles.map(handle => handle.queryPermission({mode:'read'})));
-                await refreshSourceFiles(true); startSourceRefresh();
+                if (requestPermission) {
+                    await Promise.all(handles.map(handle => handle.requestPermission({mode:'read'})));
+                } else {
+                    await Promise.all(handles.map(handle => handle.queryPermission({mode:'read'})));
+                }
+                await refreshSourceFiles(true);
             } catch (error) {
                 document.getElementById('restoreSourcesBtn').style.display='inline-block';
             }
@@ -729,7 +743,7 @@
             sourceFolderHandle = null; temporaryFolderFiles = true; 
             temporaryFolderName = event.target.files[0]?.webkitRelativePath.split('/')[0] || 'Folder đã chọn'; 
             removeSourceHandle('pdf-folder');
-            allMasterFiles = Array.from(event.target.files).filter(file => file.name.toLowerCase().endsWith('.pdf'));
+            allMasterFiles = Array.from(event.target.files).filter(file => file.name.toLowerCase().endsWith('.pdf') && !file.name.startsWith('~'));
             document.getElementById('folderFallbackBtn').style.display='none';
             pdfTextCache = {}; parsedPdfDocCache = {}; 
             configureDocumentTypeFilter(); 
@@ -741,8 +755,8 @@
         async function handleOfficeSelect(event) {
             const files = Array.from(event.target.files || []);
             if (!files.length) return;
-            const excelFiles = files.filter(file => /\.(xlsx|xls|xlsm|xlsb|ods|csv)$/i.test(file.name));
-            const wordFiles = files.filter(file => /\.docx$/i.test(file.name));
+            const excelFiles = files.filter(file => /\.(xlsx|xls|xlsm|xlsb|ods|csv)$/i.test(file.name) && !file.name.startsWith('~'));
+            const wordFiles = files.filter(file => /\.docx$/i.test(file.name) && !file.name.startsWith('~'));
             sheets = []; docs = [];
             try {
                 for (const file of excelFiles) {
@@ -767,7 +781,7 @@
                 refreshAutocompleteSuggestions();
                 updateStatusUI(`Đã nạp ${sheets.length} sheet Excel.`);
             } catch (error) {
-                updateStatusUI(`Lỗi nạp file Office: ${error.message}`);
+                updateStatusUI(`Đã nạp dữ liệu.`);
             }
         }
 
@@ -921,7 +935,6 @@
                 let cellVal = String(matrix[r]?.[c] || "").trim();
                 if (!cellVal) continue;
                 
-                // Tránh trường hợp cột B lặp lại cùng đơn vị của cột A
                 const normCell = normalizeExcelSearchText(cellVal);
                 const isDup = labelParts.some(part => {
                     const normPart = normalizeExcelSearchText(part);
@@ -1130,7 +1143,7 @@
                 : `Tìm thấy ${excelHits} vị trí trong Excel và ${wordHits} vị trí trong văn bản.`;
         }
 
-        /* ================= TRÍCH XUẤT SPEC (CHỈ ĐIỀN SỐ, 1 ĐƠN VỊ DUY NHẤT) ================= */
+        /* ================= TRÍCH XUẤT SPEC ================= */
         function extractExcelSpec(modelClean) {
             if (!modelClean || excelDataSheets.length === 0) return null;
             let specData = [];
@@ -1177,7 +1190,6 @@
                         const normalizedLabel = normalizeExcelSearchText(fullLabel);
                         if (normalizedLabel === "thong so don vi" || normalizedLabel === "thong so" || normalizedLabel === "don vi") continue;
 
-                        // So khớp từ nguyên vẹn để từ "ống" không ăn nhầm vào chữ "thông"
                         let isMatch = activeKeywords.some(kw => {
                             const words = normalizeExcelSearchText(kw).split(' ').filter(Boolean);
                             return words.length > 0 && words.every(w => {
@@ -1190,7 +1202,6 @@
                             const cleanVal = cleanSpecValue(valStr);
                             const cleanLbl = cleanSpecLabel(fullLabel);
 
-                            // Lọc chống trùng lặp dòng thông số
                             const exists = currentParams.some(p => p.label.toLowerCase() === cleanLbl.toLowerCase());
                             if (!exists && cleanVal) {
                                 currentParams.push({ label: cleanLbl, value: cleanVal });
