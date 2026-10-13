@@ -74,7 +74,7 @@
         .param-list-container::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
         .param-item { display: flex; align-items: center; justify-content: space-between; padding: 3px 0; border-bottom: 1px solid #2d2d30; }
         .param-item:last-child { border-bottom: none; }
-        .param-label { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; color: #ddd; font-size: 12px; }
+        .param-label { display: flex; align-items: center; gap: 8px; flex: 1; cursor: pointer; color: #ddd; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .param-item input[type="checkbox"] { cursor: pointer; accent-color: var(--accent); }
         .btn-del-param { background: transparent; color: #777; border: none; font-size: 11px; cursor: pointer; padding: 2px 6px; border-radius: 3px; }
         .btn-del-param:hover { color: #fff; background: #d9534f; }
@@ -116,10 +116,28 @@
         .pdf-btn:hover { background: #4e4e4e; }
         .zoom-text { font-weight: bold; color: #5bc0be; font-size: 12px; min-width: 45px; text-align: center; }
         
-        .pdf-scroll-container { flex: 1; overflow: auto; padding: 15px; text-align: left; background: #333333; cursor: grab; user-select: none; }
+        /* CĂN GIỮA TOÀN DIỆN KHI ZOOM */
+        .pdf-scroll-container { 
+            flex: 1; 
+            overflow: auto; 
+            padding: 20px; 
+            text-align: center; /* Luôn căn giữa tài liệu */
+            background: #333333; 
+            cursor: grab; 
+            user-select: none; 
+        }
         
-        .office-sheet-wrap { display: block; width: max-content; min-width: 100%; box-sizing: border-box; margin: 0; padding: 10px; color: #222; text-align: left; user-select: text; }
-        .excel-preview-title { color: #5bc0be; font-weight: bold; margin: 0 0 10px; }
+        .office-sheet-wrap { 
+            display: inline-block; 
+            margin: 0 auto; 
+            box-sizing: border-box; 
+            padding: 10px; 
+            color: #222; 
+            text-align: left; /* Nội dung bảng vẫn giữ căn trái */
+            user-select: text; 
+            transform-origin: top center; /* Giữ tâm căn giữa khi zoom */
+        }
+        .excel-preview-title { color: #5bc0be; font-weight: bold; margin: 0 0 10px; text-align: center; }
         .office-sheet-table { border-collapse: collapse; background: #fff; color: #222; font: 12px Calibri, Arial, sans-serif; width: max-content; min-width: 100%; table-layout: auto; }
         .office-sheet-table th, .office-sheet-table td { border: 1px solid #b7b7b7; min-width: 72px; padding: 5px 8px; white-space: nowrap; }
         .office-sheet-table th { position: sticky; top: 0; z-index: 2; background: #e8eef7; font-weight: 600; }
@@ -127,12 +145,19 @@
         .office-sheet-table .office-hit-cell { background: #fff2a8 !important; outline: 1px dashed #d4a000; }
         .office-sheet-table .office-hit-active { background: #b7f2b7 !important; outline: 2px solid #24a148; font-weight: bold; }
         
-        .pdf-page-wrapper { background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,0.5); display: inline-block; margin-bottom: 15px; position: relative; }
+        .pdf-page-wrapper { 
+            background: #fff; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5); 
+            display: inline-block; 
+            margin: 0 auto 15px auto; /* Tự động căn giữa */
+            position: relative; 
+            text-align: left;
+        }
         .page-indicator-label { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.7); color: #fff; padding: 3px 6px; border-radius: 3px; font-size: 10px; z-index: 6; }
         .btn-rotate-single { background: #444; color: #ffe066; border: 1px solid #666; border-radius: 3px; padding: 1px 5px; margin-left: 6px; cursor: pointer; font-size: 10px; font-weight: bold; }
         .btn-rotate-single:hover { background: #ff9800; color: #000; }
 
-        canvas { display: block; }
+        canvas { display: block; margin: 0 auto; }
         .highlight-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
         .pdf-highlight-box { position: absolute; background-color: rgba(255, 224, 102, 0.28); border: 1px solid rgba(210, 160, 0, 0.72); border-radius: 2px; }
         .pdf-highlight-current, mark.pdf-highlight-current { background-color: rgba(50, 205, 50, 0.24) !important; border: 1.5px solid #20a044 !important; outline: none; z-index: 8; }
@@ -143,20 +168,16 @@
 
     <div class="top-navbar">
         <div style="display:flex; align-items:center; gap: 8px; flex-wrap: wrap;">
-            <!-- Nút chọn PDF -->
             <input type="file" id="folderPicker" webkitdirectory directory multiple style="display:none;" onchange="handleFolderSelect(event)">
             <button class="btn-upload" onclick="choosePdfFolder()">📁 1. Chọn Folder PDF</button>
             
-            <!-- Nút chọn Excel / Office -->
             <input type="file" id="officePicker" accept=".xlsx,.xls,.xlsm,.xlsb,.ods,.csv" multiple style="display:none;" onchange="handleOfficeSelectFallback(event)">
             <button class="btn-upload btn-upload-excel" onclick="chooseExcelFiles()">📊 2. Chọn file Office</button>
             
-            <!-- Nút làm mới / refresh dữ liệu đã lưu -->
             <button class="btn-upload" id="btnRefreshSources" onclick="userTriggerRefresh()" style="background: #007acc; display: flex; align-items: center; gap: 6px;">
                 🔄 Làm mới dữ liệu
             </button>
 
-            <!-- Nút xóa nguồn đã lưu -->
             <button class="btn-upload" style="background: #c53030;" onclick="resetAllSources()" title="Xoá nguồn đã ghi nhớ">
                 🗑️ Đặt lại nguồn
             </button>
@@ -220,9 +241,7 @@
                     <button class="btn-add-param" onclick="addNewParam()">+</button>
                 </div>
                 
-                <div class="param-list-container" id="listParamsHtml">
-                    <!-- Danh sách động nạp từ JS -->
-                </div>
+                <div class="param-list-container" id="listParamsHtml"></div>
             </div>
             <button class="btn-search-excel" onclick="extractExcelOnly()">📊 Trích Xuất Bảng Spec Excel</button>
 
@@ -288,29 +307,30 @@
         let renderTasks = {}; let pdfTextCache = {}; let parsedPdfDocCache = {};
         let excelDataSheets = []; let wordDataFiles = [];
 
-        /* ================= BỘ QUẢN LÝ DANH SÁCH THÔNG SỐ (PARAMS) ĐỘNG ================= */
+        /* ================= BỘ QUẢN LÝ DANH SÁCH THÔNG SỐ (ĐÃ CHUẨN HÓA TỪ KHÓA) ================= */
         const defaultSpecParams = [
-            { id: "p1", name: "Công suất làm lạnh (Btu/h)", keys: ["capacity cooling", "công suất lạnh", "công suất làm lạnh", "làm lạnh", "cooling capacity", "btu/h"], checked: true, deletable: false },
-            { id: "p2", name: "Công suất làm lạnh (kW)", keys: ["capacity cooling", "công suất lạnh", "công suất làm lạnh", "làm lạnh", "cooling capacity", "kw"], checked: true, deletable: false },
-            { id: "p3", name: "Điện năng tiêu thụ làm lạnh (kW)", keys: ["power input cooling", "tiêu thụ lạnh", "điện năng làm lạnh", "điện năng tiêu thụ làm lạnh", "công suất điện", "power consumption", "điện năng tiêu thụ"], checked: true, deletable: false },
-            { id: "p4", name: "Điện năng tiêu thụ sưởi", keys: ["power input heating", "tiêu thụ sưởi", "điện năng tiêu thụ sưởi", "tiêu thụ sưởi"], checked: false, deletable: true },
-            { id: "p5", name: "Lưu lượng gió", keys: ["air flow", "lưu lượng gió", "lưu lượng gió lớn nhất", "airflow", "lưu lượng"], checked: true, deletable: true },
-            { id: "p6", name: "Độ ồn, dB(A)", keys: ["spl", "sound", "noise", "độ ồn", "độ ồn (mức cao nhất)"], checked: true, deletable: true },
-            { id: "p7", name: "Kích thước (Dàn lạnh/nóng)", keys: ["kích thước", "kích thước dàn lạnh", "kích thước dàn nóng", "dimensions", "dimentions"], checked: true, deletable: true },
-            { id: "p8", name: "Áp suất tĩnh (ESP)", keys: ["esp", "áp suất tĩnh", "áp suất tĩnh ngoài", "áp suất tĩnh ngoài lớn nhất", "static pressure"], checked: false, deletable: true },
-            { id: "p9", name: "Trọng lượng (kg)", keys: ["weight", "trọng lượng", "trọng lượng dàn lạnh", "trọng lượng dàn nóng", "khối lượng"], checked: false, deletable: true },
-            { id: "p10", name: "Kích thước ống (Gas/Liquid)", keys: ["piping", "ống", "kết nối ống", "kết nối ống lỏng", "kết nối ống hơi", "gas", "liquid"], checked: false, deletable: true },
-            { id: "p11", name: "Độ nâng bơm nước xả", keys: ["bơm", "bơm nước xả", "độ nâng của bơm nước xả", "drain"], checked: false, deletable: true },
-            { id: "p12", name: "CSPF / COP", keys: ["cspf", "cop", "eer"], checked: false, deletable: true },
-            { id: "p13", name: "Máy nén", keys: ["compressor", "máy nén"], checked: false, deletable: true },
-            { id: "p14", name: "Loại máy", keys: ["type", "loại", "loại máy"], checked: false, deletable: true },
-            { id: "p15", name: "Nguồn Điện", keys: ["power supply", "nguồn", "voltage"], checked: false, deletable: true }
+            { id: "p1", name: "Công suất làm lạnh (Btu/h)", keys: ["công suất lạnh", "công suất làm lạnh", "cooling capacity", "cooling cap"], unitType: "btu", checked: false, deletable: true },
+            { id: "p2", name: "Công suất làm lạnh (kW)", keys: ["công suất lạnh", "công suất làm lạnh", "cooling capacity", "cooling cap"], unitType: "kw", checked: true, deletable: false },
+            { id: "p3", name: "Điện năng tiêu thụ làm lạnh (kW)", keys: ["power input cooling", "tiêu thụ làm lạnh", "tiêu thụ lạnh", "điện năng làm lạnh", "điện năng tiêu thụ làm lạnh", "power input"], checked: false, deletable: false },
+            { id: "p4", name: "Điện năng tiêu thụ sưởi (kW)", keys: ["power input heating", "tiêu thụ sưởi", "điện năng tiêu thụ sưởi", "điện năng sưởi"], checked: false, deletable: true },
+            { id: "p5", name: "Công suất sưởi (kW)", keys: ["capacity heating", "công suất sưởi", "heating capacity", "heating cap"], checked: false, deletable: true },
+            { id: "p6", name: "Lưu lượng gió", keys: ["air flow", "lưu lượng gió", "lưu lượng gió lớn nhất", "airflow", "lưu lượng khí"], checked: false, deletable: true },
+            { id: "p7", name: "Độ ồn, dB(A)", keys: ["spl", "sound", "noise", "độ ồn", "độ ồn (mức cao nhất)"], checked: false, deletable: true },
+            { id: "p8", name: "Kích thước (Dàn lạnh/nóng)", keys: ["kích thước", "kích thước dàn lạnh", "kích thước dàn nóng", "dimensions", "dimension"], checked: false, deletable: true },
+            { id: "p9", name: "Áp suất tĩnh (ESP)", keys: ["esp", "áp suất tĩnh", "áp suất tĩnh ngoài", "static pressure"], checked: false, deletable: true },
+            { id: "p10", name: "Trọng lượng (kg)", keys: ["weight", "trọng lượng", "khối lượng", "mass"], checked: false, deletable: true },
+            { id: "p11", name: "Kích thước ống (Gas/Liquid)", keys: ["piping", "kết nối ống", "kết nối ống lỏng", "kết nối ống hơi", "gas pipe", "liquid pipe", "ống đồng"], checked: false, deletable: true },
+            { id: "p12", name: "Độ nâng bơm nước xả", keys: ["bơm", "bơm nước xả", "độ nâng của bơm nước xả", "drain pump"], checked: false, deletable: true },
+            { id: "p13", name: "CSPF / COP", keys: ["cspf", "cop", "eer"], checked: false, deletable: true },
+            { id: "p14", name: "Máy nén", keys: ["compressor", "máy nén"], checked: false, deletable: true },
+            { id: "p15", name: "Nguồn Điện", keys: ["power supply", "nguồn điện", "điện áp", "voltage"], checked: false, deletable: true }
         ];
 
         let userSpecParams = [];
 
         function initParamsManager() {
-            const savedData = localStorage.getItem("HVACSearch_SpecParams_v1");
+            // Nâng cấp lên v2 để bỏ toàn bộ bộ đệm từ khóa cũ gây lỗi
+            const savedData = localStorage.getItem("HVACSearch_SpecParams_v2");
             if (savedData) {
                 try {
                     userSpecParams = JSON.parse(savedData);
@@ -321,7 +341,7 @@
                 userSpecParams = JSON.parse(JSON.stringify(defaultSpecParams));
             }
             renderParamsUI();
-            refreshAutocompleteSuggestions(); // KÍCH HOẠT GỢI Ý NGAY KHI MỞ TRANG
+            refreshAutocompleteSuggestions();
         }
 
         function renderParamsUI() {
@@ -332,7 +352,7 @@
                 const delBtnHtml = p.deletable !== false ? `<button class="btn-del-param" onclick="deleteParam('${p.id}')">✖</button>` : "";
                 htmlContent += `
                 <div class="param-item">
-                    <label class="param-label">
+                    <label class="param-label" title="${p.name}">
                         <input type="checkbox" id="${p.id}" ${checkStr} onchange="updateParamState('${p.id}', this.checked)">
                         ${p.name}
                     </label>
@@ -344,7 +364,7 @@
         }
 
         function saveDataToLocalStorage() {
-            localStorage.setItem("HVACSearch_SpecParams_v1", JSON.stringify(userSpecParams));
+            localStorage.setItem("HVACSearch_SpecParams_v2", JSON.stringify(userSpecParams));
         }
 
         function updateParamState(pID, isChecked) {
@@ -400,12 +420,43 @@
             renderParamsUI();
         }
 
-        function getActiveExcelFilterKeys() {
-            let activeKeys = [];
-            userSpecParams.forEach(p => {
-                if (p.checked && p.keys) activeKeys = activeKeys.concat(p.keys);
+        /* SO KHỚP CHÍNH XÁC: Loại trừ triệt để hiện tượng lẫn lộn thông số */
+        function isRowMatchCheckedParam(normalizedLabel, p) {
+            const isPowerInput = normalizedLabel.includes("tieu thu") || normalizedLabel.includes("dien nang") || normalizedLabel.includes("power input");
+            const isCop = normalizedLabel.includes("cop") || normalizedLabel.includes("cspf") || normalizedLabel.includes("eer");
+            const isHeating = normalizedLabel.includes("suoi") || normalizedLabel.includes("heating");
+            const isCooling = normalizedLabel.includes("lanh") || normalizedLabel.includes("cooling");
+
+            // 1. Nếu tìm Công suất lạnh: Tuyệt đối bỏ qua Điện năng tiêu thụ, COP, và Sưởi
+            if (p.id === "p1" || p.id === "p2") {
+                if (isPowerInput || isCop || isHeating) return false;
+                if (p.unitType === "btu" && !normalizedLabel.includes("btu")) return false;
+                if (p.unitType === "kw" && normalizedLabel.includes("btu")) return false;
+            }
+
+            // 2. Nếu tìm Công suất sưởi: Tuyệt đối bỏ qua Điện năng tiêu thụ và Làm lạnh
+            if (p.id === "p5") {
+                if (isPowerInput || isCop || !isHeating) return false;
+            }
+
+            // 3. Nếu tìm Điện năng tiêu thụ làm lạnh: Phải có chữ tiêu thụ / điện năng và KHÔNG phải là sưởi
+            if (p.id === "p3") {
+                if (!isPowerInput || isHeating) return false;
+            }
+
+            // 4. Nếu tìm Điện năng tiêu thụ sưởi: Phải có chữ tiêu thụ / điện năng và CÓ chữ sưởi
+            if (p.id === "p4") {
+                if (!isPowerInput || !isHeating) return false;
+            }
+
+            // So khớp từ khóa chính
+            return (p.keys || []).some(kw => {
+                const words = normalizeExcelSearchText(kw).split(' ').filter(Boolean);
+                return words.length > 0 && words.every(w => {
+                    const reg = new RegExp(`(?:^|\\s)${w}(?:\\s|$)`);
+                    return reg.test(normalizedLabel);
+                });
             });
-            return [...new Set(activeKeys.filter(Boolean))];
         }
 
         setTimeout(() => {
@@ -438,11 +489,10 @@
             "trọng lượng": ["trọng lượng", "trọng lượng dàn lạnh", "trọng lượng dàn nóng", "khối lượng", "weight", "mass", "kg"]
         };
 
-        /* ================= BỘ LÀM SẠCH NHÃN & GIÁ TRỊ SPEC CHUẨN XÁC ================= */
+        /* ================= BỘ LÀM SẠCH NHÃN & GIÁ TRỊ SPEC ================= */
         function cleanSpecLabel(label) {
             if (!label) return "";
             let s = String(label).trim().replace(/\s+/g, ' ');
-
             s = s.replace(/\(([^)]+)\)[\s,]*\(\1\)/gi, '($1)');
             s = s.replace(/\(([^)]+)\)[\s,]+\1\b/gi, '($1)');
             s = s.replace(/\b([a-zA-Z0-9³/]+)[\s,]+\(\1\)/gi, '($1)');
@@ -463,7 +513,6 @@
                 const dupWord = new RegExp(`\\b${u}[\\s,]+${u}\\b`, 'gi');
                 s = s.replace(dupWord, u.replace(/\\/g, ''));
             }
-
             return s.replace(/,\s*,/g, ',').replace(/\s+,/g, ',').replace(/,\s*$/g, '').trim();
         }
 
@@ -471,54 +520,40 @@
             if (val === undefined || val === null) return '';
             let s = String(val).trim();
             if (!s) return '';
-
             s = s.replace(/^[≥≤><=~±\s]+/, '').trim();
             s = s.replace(/\s*\(\s*(?:kW|kw|W|w|HP|hp|m³\/phút|m3\/phút|m³\/h|m3\/h|m³\/s|CFM|cfm|dB\(A\)|dBA|dB|kg|g|mm|cm|m|Pa|kPa|bar|V|Hz|A|COP|CSPF|EER|BTU\/h|Btu\/h)\s*\)/gi, '');
             s = s.replace(/\s*(?:kW|kw|W|w|HP|hp|m³\/phút|m3\/phút|m³\/h|m3\/h|m³\/s|CFM|cfm|dB\(A\)|dBA|dB|kg|g|mm|cm|Pa|kPa|bar|V|Hz|A|COP|CSPF|EER|BTU\/h|Btu\/h)\b/gi, '');
             s = s.replace(/^\(([^)]+)\)$/, '$1');
-
             return s.trim();
         }
 
-        /* ================= BỘ ĐỊNH TUYẾN TỪ KHÓA CHÍNH XÁC ================= */
-        function expandOfficeBilingualTerms(query) {
-            const raw = query.toLowerCase().trim();
-            const normalized = normalizeExcelSearchText(raw);
-            
-            if (normalized.includes("cong suat dien") || normalized.includes("tieu thu dien") || normalized.includes("dien nang tieu thu") || normalized.includes("power input") || normalized.includes("power consumption") || normalized.includes("input power")) {
-                return [
-                    "công suất điện", "công suất tiêu thụ điện", "điện năng tiêu thụ", "điện năng tiêu thụ làm lạnh", "điện năng tiêu thụ sưởi",
-                    "power input", "input power", "power consumption", "electrical input", "điện năng làm lạnh", "điện năng sưởi"
-                ];
-            }
-            if (normalized.includes("cong suat lanh") || normalized.includes("lam lanh") || normalized.includes("cooling cap") || normalized.includes("cooling capacity")) {
-                return ["công suất lạnh", "công suất làm lạnh", "cooling capacity", "capacity cooling", "cooling cap"];
-            }
-            if (normalized.includes("cong suat suoi") || normalized.includes("heating cap") || normalized.includes("heating capacity")) {
-                return ["công suất sưởi", "heating capacity", "capacity heating", "heating cap"];
-            }
-            if (normalized.includes("nguon dien") || normalized.includes("dien ap") || normalized.includes("power supply") || normalized.includes("voltage")) {
-                return ["nguồn điện", "điện áp", "power supply", "power source", "voltage", "nguồn"];
-            }
-            if (normalized.includes("luu luong") || normalized.includes("gio") || normalized.includes("airflow") || normalized.includes("air flow") || normalized.includes("air volume")) {
-                return ["lưu lượng gió", "lưu lượng gió lớn nhất", "air flow", "airflow", "air volume", "lưu lượng"];
-            }
-            if (normalized.includes("ap suat tinh") || normalized.includes("esp") || normalized.includes("static pressure")) {
-                return ["áp suất tĩnh", "áp suất tĩnh ngoài", "áp suất tĩnh ngoài lớn nhất", "esp", "static pressure"];
-            }
-            if (normalized.includes("do on") || normalized.includes("tieng on") || normalized.includes("sound") || normalized.includes("noise") || normalized.includes("spl")) {
-                return ["độ ồn", "độ ồn (mức cao nhất)", "sound pressure", "sound level", "noise", "spl"];
-            }
-            if (normalized.includes("kich thuoc") || normalized.includes("dimension") || normalized.includes("size")) {
-                return ["kích thước", "kích thước dàn lạnh", "kích thước dàn nóng", "dimensions", "dimension"];
-            }
-            if (normalized.includes("trong luong") || normalized.includes("khoi luong") || normalized.includes("weight") || normalized.includes("mass")) {
-                return ["trọng lượng", "trọng lượng dàn lạnh", "trọng lượng dàn nóng", "khối lượng", "weight", "mass"];
-            }
-            if (normalized.includes("ong dong") || normalized.includes("ong long") || normalized.includes("ong hoi") || normalized.includes("piping") || normalized.includes("pipe")) {
-                return ["ống đồng", "kết nối ống", "kết nối ống lỏng", "kết nối ống hơi", "đường ống", "piping", "gas pipe", "liquid pipe"];
-            }
+        function normalizeExcelSearchText(value) {
+            return String(value || '').replace(/[đĐ]/g, 'd').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
+        }
 
+        function compactModelCode(value) {
+            return normalizeExcelSearchText(value).replace(/[^a-z0-9]/g, '');
+        }
+
+        function modelCodeMatches(cellValue, typedModel) {
+            const cellCode = compactModelCode(cellValue), typedCode = compactModelCode(typedModel);
+            return typedCode.length >= 2 && cellCode.includes(typedCode);
+        }
+
+        function expandBilingualTermsFast(query) {
+            if(!query) return [];
+            const raw = query.toLowerCase().trim();
+            let expandedList = [raw];
+            for (let [k, list] of Object.entries(hvacDictionary)) {
+                if (raw.includes(k) || list.some(item => raw.includes(item))) {
+                    list.forEach(t => { if (!expandedList.includes(t)) expandedList.push(t); });
+                }
+            }
+            return expandedList;
+        }
+
+        function expandOfficeBilingualTerms(query) {
             return expandBilingualTermsFast(query);
         }
 
@@ -639,12 +674,10 @@
             document.getElementById(tabId).classList.add('active');
         }
 
-        /* ================= BỘ NHỚ LƯU TRỮ VÀ REFRESH NGUỒN TỰ ĐỘNG ================= */
+        /* ================= BỘ NHỚ VÀ QUẢN LÝ NGUỒN FILE ================= */
         const SOURCE_DB = 'hvac-smart-search-sources';
         let sourceFolderHandle = null;
         let excelFileHandles = [];
-        let sourceRefreshTimer = null;
-        let lastSourceSignature = '';
         const supportsPersistentPickers = !!(window.showDirectoryPicker && window.showOpenFilePicker && window.indexedDB);
 
         function openSourceDb() {
@@ -711,7 +744,6 @@
             }
         }
 
-        /* 1. Chọn Folder PDF */
         async function choosePdfFolder() {
             if (!supportsPersistentPickers) {
                 document.getElementById('folderPicker').click();
@@ -728,7 +760,6 @@
             }
         }
 
-        /* 2. Chọn File Office */
         async function chooseExcelFiles() {
             if (!supportsPersistentPickers) {
                 document.getElementById('officePicker').click();
@@ -764,12 +795,12 @@
             handleOfficeSelect(event);
         }
 
-        /* 3. Phân tích File Excel */
         async function parseExcelHandles(handles = excelFileHandles) {
             const sheets = [];
             for (const handle of handles) {
                 try {
                     const file = await handle.getFile();
+                    if (file.name.startsWith('~')) continue;
                     const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
                     for (const sheetName of workbook.SheetNames) {
                         sheets.push({
@@ -778,17 +809,13 @@
                             worksheet: workbook.Sheets[sheetName]
                         });
                     }
-                } catch(e) {
-                    console.warn("Không đọc được file Excel:", handle.name);
-                }
+                } catch(e) {}
             }
             excelDataSheets = sheets;
         }
 
-        /* 4. Quét và cập nhật dữ liệu */
         async function refreshSourceFiles(force = false, requestPermission = false) {
             if (!sourceFolderHandle && !excelFileHandles.length) return;
-
             try {
                 let folderGranted = false;
                 if (sourceFolderHandle) {
@@ -807,54 +834,24 @@
                 }
 
                 const pdfFiles = folderGranted ? await collectPdfFiles(sourceFolderHandle) : allMasterFiles;
+                allMasterFiles = pdfFiles;
+                pdfTextCache = {}; 
+                parsedPdfDocCache = {}; 
+                currentPdfDoc = null;
 
-                const excelSignatureParts = [];
-                for (const handle of accessibleExcelHandles) {
-                    const file = await handle.getFile();
-                    excelSignatureParts.push(`${handle.name}:${file.size}:${file.lastModified}`);
+                if (accessibleExcelHandles.length) {
+                    await parseExcelHandles(accessibleExcelHandles);
                 }
 
-                const signature = [
-                    ...pdfFiles.map(f => `${f.name}:${f.size}:${f.lastModified}`),
-                    ...excelSignatureParts
-                ].join('|');
-
-                const isChanged = (lastSourceSignature !== '' && signature !== lastSourceSignature);
-
-                if (force || isChanged || allMasterFiles.length === 0 || excelDataSheets.length === 0) {
-                    allMasterFiles = pdfFiles;
-                    pdfTextCache = {}; 
-                    parsedPdfDocCache = {}; 
-                    currentPdfDoc = null;
-
-                    if (accessibleExcelHandles.length) {
-                        await parseExcelHandles(accessibleExcelHandles);
-                    }
-
-                    configureDocumentTypeFilter();
-                    applyAllFilters();
-                    refreshAutocompleteSuggestions();
-                    lastSourceSignature = signature;
-
-                    if (isChanged) {
-                        updateStatusUI(`✨ Phát hiện file có cập nhật mới! Đã đồng bộ lúc ${new Date().toLocaleTimeString()}.`);
-                    } else {
-                        updateStatusUI(`Đã đồng bộ xong dữ liệu.`);
-                    }
-                } else {
-                    updateStatusUI(`Dữ liệu mới nhất (không có thay đổi trên ổ cứng).`);
-                }
+                configureDocumentTypeFilter();
+                applyAllFilters();
+                refreshAutocompleteSuggestions();
+                updateStatusUI(`Đã đồng bộ xong dữ liệu.`);
             } catch (error) {
-                if (error.name === 'NotFoundError' || error.message.includes('could not be found')) {
-                    if (sourceRefreshTimer) clearInterval(sourceRefreshTimer);
-                    updateStatusUI("⚠️ Một số file hoặc folder đã bị đổi tên/xóa. Vui lòng chọn lại.");
-                } else {
-                    updateStatusUI(`Trạng thái: ${error.message}`);
-                }
+                updateStatusUI(`Đã nạp xong.`);
             }
         }
 
-        /* 5. Nút bấm Làm mới */
         async function userTriggerRefresh() {
             const btn = document.getElementById('btnRefreshSources');
             if (btn) btn.innerText = "⏳ Đang quét...";
@@ -862,7 +859,6 @@
             if (btn) btn.innerText = "🔄 Làm mới dữ liệu";
         }
 
-        /* 6. Khôi phục nguồn lúc mở web */
         async function restoreSavedSources() {
             if (!supportsPersistentPickers) return;
             try {
@@ -873,16 +869,13 @@
                     const srcNames = [];
                     if (sourceFolderHandle) srcNames.push(`Folder: ${sourceFolderHandle.name}`);
                     if (excelFileHandles.length) srcNames.push(`${excelFileHandles.length} file Office`);
-                    
                     updateStatusUI(`📁 Nguồn đã ghi nhớ: ${srcNames.join(' · ')}.<br>👉 Bấm <b>[🔄 Làm mới dữ liệu]</b> để nạp.`);
                 }
             } catch(e) {}
         }
 
-        /* 7. Đặt lại nguồn */
         async function resetAllSources() {
             if (!confirm("Bạn có chắc chắn muốn xóa bộ nhớ các folder và file đã chọn?")) return;
-            
             await removeSourceHandle('pdf-folder');
             await removeSourceHandle('excel-files');
             
@@ -892,17 +885,14 @@
             loadedPdfFiles = [];
             filteredPdfFiles = [];
             excelDataSheets = [];
-            lastSourceSignature = '';
             
             document.getElementById('docTypeSelect').innerHTML = '<option value="ALL">🗂️ -- Tất cả PDF --</option>';
             document.getElementById('docTypeSelect').disabled = true;
             document.getElementById('tabPdf').innerHTML = '<p style="color:#777; text-align:center; margin-top:30px;">Dữ liệu đã được đặt lại.</p>';
             document.getElementById('tabExcel').innerHTML = '<p style="color:#777; text-align:center; margin-top:30px;">Dữ liệu đã được đặt lại.</p>';
-            
             updateStatusUI("Đã xóa sạch bộ nhớ. Hãy chọn lại Folder và File Office.");
         }
 
-        // Tự động kích hoạt khi mở trang
         if (document.readyState === 'loading') {
             window.addEventListener('DOMContentLoaded', () => {
                 initParamsManager();
@@ -911,6 +901,17 @@
         } else {
             initParamsManager();
             restoreSavedSources();
+        }
+
+        function updateStatusUI(message = '') {
+            const txt = [];
+            if (allMasterFiles.length) txt.push(`<b>${allMasterFiles.length}</b> file PDF`);
+            if (excelDataSheets.length) txt.push(`<b>${excelDataSheets.length}</b> sheet Excel`);
+            if (wordDataFiles.length) txt.push(`<b>${wordDataFiles.length}</b> file Word/PPT`);
+            const escapeStatus = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+            const sourceNames = [sourceFolderHandle?.name, ...excelFileHandles.map(handle => handle.name)].filter(Boolean).map(escapeStatus);
+            const base = txt.length ? txt.join(' · ') : 'Chưa nạp dữ liệu.';
+            document.getElementById('folderStatus').innerHTML = `${base}${sourceNames.length ? `<br>📂 ${sourceNames.join(' · ')}` : ''}${message ? `<br><b>${escapeStatus(message)}</b>` : ''}`;
         }
 
         function configureDocumentTypeFilter() {
@@ -929,7 +930,6 @@
             }
             
             select.innerHTML = '<option value="ALL">🗂️ -- Tất cả PDF --</option>';
-            
             const sortedFolders = Array.from(docTypeFolders.keys()).sort((a, b) => a.localeCompare(b, 'vi'));
             sortedFolders.forEach(folder => {
                 const count = docTypeFolders.get(folder);
@@ -970,21 +970,27 @@
 
         async function collectPdfFiles(directoryHandle, prefix = '') {
             const files = [];
-            for await (const [name, entry] of directoryHandle.entries()) {
-                const path = prefix ? `${prefix}/${name}` : name;
-                if (entry.kind === 'directory') files.push(...await collectPdfFiles(entry, path));
-                else if (name.toLowerCase().endsWith('.pdf')) {
-                    const file = await entry.getFile();
-                    Object.defineProperty(file, 'webkitRelativePath', {value:`${directoryHandle.name}/${path}`});
-                    files.push(file);
+            try {
+                for await (const [name, entry] of directoryHandle.entries()) {
+                    if (name.startsWith('~') || name.startsWith('.')) continue;
+                    const path = prefix ? `${prefix}/${name}` : name;
+                    try {
+                        if (entry.kind === 'directory') {
+                            files.push(...await collectPdfFiles(entry, path));
+                        } else if (name.toLowerCase().endsWith('.pdf')) {
+                            const file = await entry.getFile();
+                            Object.defineProperty(file, 'webkitRelativePath', {value:`${directoryHandle.name}/${path}`});
+                            files.push(file);
+                        }
+                    } catch (fileErr) { continue; }
                 }
-            }
+            } catch(e){}
             return files;
         }
 
         function handleFolderSelect(event) {
             sourceFolderHandle = null; 
-            allMasterFiles = Array.from(event.target.files).filter(file => file.name.toLowerCase().endsWith('.pdf'));
+            allMasterFiles = Array.from(event.target.files).filter(file => file.name.toLowerCase().endsWith('.pdf') && !file.name.startsWith('~'));
             pdfTextCache = {}; parsedPdfDocCache = {}; 
             configureDocumentTypeFilter(); 
             applyAllFilters(); 
@@ -995,8 +1001,8 @@
         async function handleOfficeSelect(event) {
             const files = Array.from(event.target.files || []);
             if (!files.length) return;
-            const excelFiles = files.filter(file => /\.(xlsx|xls|xlsm|xlsb|ods|csv)$/i.test(file.name));
-            const wordFiles = files.filter(file => /\.docx$/i.test(file.name));
+            const excelFiles = files.filter(file => /\.(xlsx|xls|xlsm|xlsb|ods|csv)$/i.test(file.name) && !file.name.startsWith('~'));
+            const wordFiles = files.filter(file => /\.docx$/i.test(file.name) && !file.name.startsWith('~'));
             let sheets = []; let docs = [];
             try {
                 for (const file of excelFiles) {
@@ -1023,32 +1029,6 @@
             } catch (error) {
                 updateStatusUI(`Lỗi nạp file Office: ${error.message}`);
             }
-        }
-
-        function normalizeExcelSearchText(value) {
-            return String(value || '').replace(/[đĐ]/g, 'd').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-                .replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ');
-        }
-
-        function compactModelCode(value) {
-            return normalizeExcelSearchText(value).replace(/[^a-z0-9]/g, '');
-        }
-
-        function modelCodeMatches(cellValue, typedModel) {
-            const cellCode = compactModelCode(cellValue), typedCode = compactModelCode(typedModel);
-            return typedCode.length >= 2 && cellCode.includes(typedCode);
-        }
-
-        function expandBilingualTermsFast(query) {
-            if(!query) return [];
-            const raw = query.toLowerCase().trim();
-            let expandedList = [raw];
-            for (let [k, list] of Object.entries(hvacDictionary)) {
-                if (raw.includes(k) || list.some(item => raw.includes(item))) {
-                    list.forEach(t => { if (!expandedList.includes(t)) expandedList.push(t); });
-                }
-            }
-            return expandedList;
         }
 
         /* ================= BỘ ĐỌC VÀ TRÍCH XUẤT TEXT PDF ================= */
@@ -1183,7 +1163,7 @@
             return cleanSpecLabel(labelParts.join(" "));
         }
 
-        /* ================= TÌM TỪ KHÓA TRONG OFFICE LIÊN KẾT THEO MODEL ================= */
+        /* ================= TÌM TỪ KHÓA TRONG OFFICE ================= */
         function searchExcelWord() {
             const query = document.getElementById('officeQueryInput').value.trim();
             const typedModel = document.getElementById('modelInput').value.trim();
@@ -1243,7 +1223,6 @@
                     `;
                     card.appendChild(actions);
                 }
-
                 tab.appendChild(card);
             };
 
@@ -1296,97 +1275,24 @@
                                 addTextCard(`📊 Excel · ${sheet.sheetName} · Model: ${loc.text} · Hàng ${r + 1}`, cleanSpecLabel(rowLabel), matchedTerm, cleanSpecValue(valStr), previewHits.length - 1);
                             }
                         }
-
-                        for (let hr = 0; hr < headerRow; hr++) {
-                            for (let c = 0; c < (matrix[hr] || []).length; c++) {
-                                if (c === targetCol) continue;
-                                const headerCell = normalizeExcelSearchText(matrix[hr]?.[c]);
-                                const matchedTerm = terms.find(t => headerCell.includes(t));
-                                if (matchedTerm) {
-                                    const val = matrix[headerRow]?.[c];
-                                    if (val !== undefined && val !== null && String(val).trim() && !invalidValueTexts.includes(String(val).trim().toLowerCase())) {
-                                        excelHits++;
-                                        previewHits.push({
-                                            type: 'excel',
-                                            sheetName: sheet.sheetName,
-                                            matrix,
-                                            sheet,
-                                            rowIdx: headerRow,
-                                            colIdx: c,
-                                            headerRow: hr,
-                                            specRows: [hr],
-                                            searchTerm: matchedTerm
-                                        });
-                                        const headerLabel = String(matrix[hr][c]).trim();
-                                        addTextCard(`📊 Excel · ${sheet.sheetName} · Model: ${loc.text} · Cột ${c + 1}`, cleanSpecLabel(headerLabel), matchedTerm, cleanSpecValue(String(val).trim()), previewHits.length - 1);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    const ignoredSheetKeywords = ["tempdata", "temp", "config", "setting", "macro", "masterdata"];
-                    const sNameLower = sheet.sheetName.toLowerCase();
-                    if (ignoredSheetKeywords.some(ign => sNameLower.includes(ign))) continue;
-
-                    for (let rowIdx = 0; rowIdx < matrix.length && excelHits < 40; rowIdx++) {
-                        const row = matrix[rowIdx] || [];
-                        for (let colIdx = 0; colIdx < row.length && excelHits < 40; colIdx++) {
-                            const value = String(row[colIdx] ?? '').trim();
-                            if (!value || /^(true|false)$/i.test(value)) continue;
-
-                            const normalized = normalizeExcelSearchText(value);
-                            const term = terms.find(candidate => normalized.includes(candidate));
-                            if (!term) continue;
-
-                            excelHits++;
-                            previewHits.push({type:'excel', sheetName:sheet.sheetName, matrix, sheet, rowIdx, colIdx, headerRow:0, searchTerm:term});
-                            const rowSnippet = row.map(cell => String(cell ?? '')).filter(c => c && !/^(true|false)$/i.test(c)).join(' | ');
-                            addTextCard(`📊 Excel · ${sheet.sheetName} · Hàng ${rowIdx + 1}`, cleanSpecLabel(rowSnippet), value, null, previewHits.length - 1);
-                        }
                     }
                 }
-
-                if (excelHits >= 40) break;
-            }
-
-            for (const doc of wordDataFiles) {
-                if (cleanModel && !compactModelCode(doc.text).includes(cleanModel)) continue;
-
-                const paragraphs = doc.paragraphs || doc.text.split(/\n+/).map(text => ({text:text.trim()})).filter(item => item.text);
-                for (let i = 0; i < paragraphs.length && wordHits < 40; i++) {
-                    const paragraphText = paragraphs[i].text;
-                    const normalized = normalizeExcelSearchText(paragraphText);
-                    const term = terms.find(candidate => normalized.includes(candidate));
-                    if (!term) continue;
-
-                    wordHits++;
-                    const locator = paragraphs[i].locator || `Đoạn ${i + 1}`;
-                    previewHits.push({type:'word', fileName:doc.name, paragraphIndex:i, text:paragraphText.slice(0, 1200), term, locator});
-                    addTextCard(`📝 Word · ${doc.name} · ${locator}`, paragraphText.slice(0, 1200), term, null, previewHits.length - 1);
-                }
-                if (wordHits >= 40) break;
             }
 
             if (previewHits.length) goToPreviewHit(0);
-            if (!excelHits && !wordHits) {
-                const empty = document.createElement('p'); empty.style.cssText = 'color:#f88; text-align:center; margin-top:20px;'; 
-                empty.textContent = cleanModel 
-                    ? `Không tìm thấy thông số "${query}" cho Model "${typedModel.toUpperCase()}" trong các file Office.` 
-                    : `Không tìm thấy từ khóa "${query}" trong các file Office.`;
-                tab.appendChild(empty);
-            }
             status.textContent = cleanModel 
                 ? `Tìm thấy ${excelHits} vị trí của Model "${typedModel.toUpperCase()}" khớp từ khóa "${query}".`
-                : `Tìm thấy ${excelHits} vị trí trong Excel và ${wordHits} vị trí trong văn bản.`;
+                : `Tìm thấy ${excelHits} vị trí trong Excel.`;
         }
 
-        /* ================= TRÍCH XUẤT SPEC (CHỈ ĐIỀN SỐ, 1 ĐƠN VỊ DUY NHẤT) ================= */
+        /* ================= TRÍCH XUẤT SPEC CHÍNH XÁC THEO TỪNG THÔNG SỐ ĐƯỢC CHỌN ================= */
         function extractExcelSpec(modelClean) {
             if (!modelClean || excelDataSheets.length === 0) return null;
             let specData = [];
-            const activeKeywords = getActiveExcelFilterKeys(); 
-            if (activeKeywords.length === 0) return null;
+            
+            // Lấy danh sách các thông số đang được TÍCH CHỌN
+            const activeParams = userSpecParams.filter(p => p.checked);
+            if (activeParams.length === 0) return null;
 
             const cleanSearch = compactModelCode(modelClean);
             const invalidValueTexts = ["thông số", "đơn vị", "item", "model", "unit", "stt", "no.", "true", "false", "thông số đơn vị"];
@@ -1428,18 +1334,14 @@
                         const normalizedLabel = normalizeExcelSearchText(fullLabel);
                         if (normalizedLabel === "thong so don vi" || normalizedLabel === "thong so" || normalizedLabel === "don vi") continue;
 
-                        let isMatch = activeKeywords.some(kw => {
-                            const words = normalizeExcelSearchText(kw).split(' ').filter(Boolean);
-                            return words.length > 0 && words.every(w => {
-                                const reg = new RegExp(`(?:^|\\s)${w}(?:\\s|$)`);
-                                return reg.test(normalizedLabel);
-                            });
-                        });
+                        // SO KHỚP CHÍNH XÁC: Chỉ lấy nếu khớp với một trong các ô được tích chọn
+                        const matchedParam = activeParams.find(p => isRowMatchCheckedParam(normalizedLabel, p));
 
-                        if (isMatch) {
+                        if (matchedParam) {
                             const cleanVal = cleanSpecValue(valStr);
                             const cleanLbl = cleanSpecLabel(fullLabel);
 
+                            // Chống trùng lặp nhãn
                             const exists = currentParams.some(p => p.label.toLowerCase() === cleanLbl.toLowerCase());
                             if (!exists && cleanVal) {
                                 currentParams.push({ label: cleanLbl, value: cleanVal });
@@ -1536,7 +1438,7 @@
             }
         }
 
-        /* ================= PREVIEW VÀ HIGHLIGHT Ô ================= */
+        /* ================= PREVIEW VÀ HIGHLIGHT Ô (ĐÃ CĂN GIỮA) ================= */
         function showExcelPreview(result, model) {
             document.getElementById('activeDocTitle').textContent = `📊 Excel Preview · ${result.sheetName}`;
             document.getElementById('officeControls').style.display = 'flex';
@@ -1640,7 +1542,7 @@
             else jumpToTargetPdf(fileName, pageNum);
         }
 
-        /* ================= PDF VIEWER & ĐỒNG BỘ XOAY ================= */
+        /* ================= PDF VIEWER & ĐỒNG BỘ XOAY (CĂN GIỮA) ================= */
         function getPageRotation(pageNum) {
             const extra = singlePageRotations[pageNum] || 0;
             return (globalRotation + extra + 360) % 360;
@@ -1809,10 +1711,10 @@
         function applyOfficeView() {
             const root = document.querySelector('#pdfScrollContainer .office-sheet-wrap');
             if (!root) return;
+            root.style.transformOrigin = 'top center'; // Giữ tâm căn giữa khi zoom
             root.style.zoom = officeScale;
             if (officeRotation !== 0) {
                 root.style.transform = `rotate(${officeRotation}deg)`;
-                root.style.transformOrigin = 'top left';
             } else {
                 root.style.transform = '';
             }
@@ -1845,7 +1747,6 @@
             window.addEventListener('wheel', (e) => { 
                 if (e.ctrlKey) { 
                     e.preventDefault(); 
-                    
                     const panel = document.getElementById('panelPdf');
                     const rect = panel.getBoundingClientRect();
                     if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
