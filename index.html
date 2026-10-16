@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
@@ -652,8 +652,28 @@ if (lettersMatch) {
         function renderAutocompleteSuggestions(inputId, listId, resetIndex = true) {
             const input = document.getElementById(inputId), list = document.getElementById(listId);
             const query = input.value.trim().toLowerCase();
+            const queryNoTone = removeVietnameseTones(query);
             const values = autocompleteValues[listId] || [];
-            const matches = values.filter(value => !query || value.toLowerCase().startsWith(query) || (inputId !== 'modelInput' && value.toLowerCase().includes(query))).slice(0, 15);
+            
+            let matches = values.filter(value => {
+                if (!query) return true;
+                const valLower = value.toLowerCase();
+                const valNoTone = removeVietnameseTones(valLower);
+                return valLower.includes(query) || valNoTone.includes(queryNoTone);
+            });
+
+            // Ưu tiên: Từ nào BẮT ĐẦU bằng chữ bạn gõ (RXYQ...) và ngắn gọn sẽ xếp lên đầu tiên
+            if (query) {
+                matches.sort((a, b) => {
+                    const aStarts = a.toLowerCase().startsWith(query);
+                    const bStarts = b.toLowerCase().startsWith(query);
+                    if (aStarts && !bStarts) return -1;
+                    if (!aStarts && bStarts) return 1;
+                    return a.length - b.length || a.localeCompare(b);
+                });
+            }
+
+            matches = matches.slice(0, 15);
             list.replaceChildren();
             if (!matches.length) { list.classList.remove('open'); return; }
             matches.forEach((value, index) => {
@@ -718,32 +738,37 @@ if (lettersMatch) {
                 'FBA50BVMA9', 'FBA71BVMA9', 'FBA100BVMA9', 'FBA125BVMA9', 'FBA140BVMA9',
                 'FXSQ20PAVE', 'FXSQ25PAVE', 'FXSQ32PAVE', 'FXSQ40PAVE', 'FXSQ50PAVE', 'FXSQ63PAVE', 'FXSQ80PAVE', 'FXSQ100PAVE', 'FXSQ125PAVE', 'FXSQ140PAVE',
                 'FXFQ25AVM', 'FXFQ32AVM', 'FXFQ40AVM', 'FXFQ50AVM', 'FXFQ63AVM', 'FXFQ80AVM', 'FXFQ100AVM', 'FXFQ125AVM',
-                'RXYQ8BYM', 'RXYQ10BYM', 'RXYQ12BYM', 'RXYQ14BYM', 'RXYQ16BYM', 'RXQ10BYM', 'RXQ12BYM',
+                'RXYQ8BYM', 'RXYQ10BYM', 'RXYQ12BYM', 'RXYQ14BYM', 'RXYQ16BYM', 'RXYQ18BYM', 'RXYQ20BYM', 'RXYQ-BYM',
+                'RXQ10BYM', 'RXQ12BYM', 'RXQ14BYM', 'RXQ16BYM', 'RXQ-BYM',
                 'RUR08NY1', 'RUR10NY1', 'RUR13NY1', 'RUR15NY1', 'RUR18NY1', 'RUR20NY1',
                 'RUR08', 'RUR10', 'RUR13', 'RUR15', 'RUR18', 'RUR20', 'RUR',
                 'FVGR08NV1', 'FVGR10NV1', 'FVGR13NV1', 'FVGR15NV1', 'FVGR18NV1', 'FVGR20NV1', 'FVGR', 'FDN'
             ];
             
-            const modelPattern = /\b[A-Z]{2,}[A-Z0-9\-_/]*\b/g;
+            // Chỉ bắt đúng dạng Model HVAC (Vd: RXYQ10BYM, RXYQ-BYM, FBA50...), bỏ qua mã tài liệu
+            const modelPattern = /\b([A-Z]{2,5}[0-9]+[A-Z0-9]*|[A-Z]{3,5}-[A-Z0-9]+)\b/g;
+            const ignoreList = /^(EDTRVN|THIETKE|LAPDAT|CATALOG|BANGGIA|HUONGDAN|KYTHUAT|DAIKIN|MANUAL)/i;
             const models = [...defaultModels];
 
             for (const file of allMasterFiles) {
-                const matches = file.name.toUpperCase().match(modelPattern) || [];
-                models.push(...matches);
+                const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[_]/g, ' ');
+                const matches = cleanName.toUpperCase().match(modelPattern) || [];
+                for (const m of matches) {
+                    if (!ignoreList.test(m) && m.length >= 3 && m.length <= 15) models.push(m);
+                }
             }
             for (const sheet of excelDataSheets) {
                 for (const row of (sheet.data || []).slice(0, 3000)) {
                     for (const cell of (row || []).slice(0, 30)) {
                         const cellStr = String(cell || '').toUpperCase();
-                        const matches = cellStr.match(modelPattern);
-                        if (matches) models.push(...matches);
-                        if (models.length >= 1000) break;
+                        const matches = cellStr.match(modelPattern) || [];
+                        for (const m of matches) {
+                            if (!ignoreList.test(m) && m.length >= 3 && m.length <= 15) models.push(m);
+                        }
                     }
-                    if (models.length >= 1000) break;
                 }
-                if (models.length >= 1000) break;
             }
-            setDatalistOptions('modelDatalist', models.sort());
+            setDatalistOptions('modelDatalist', [...new Set(models)]);
 
             const terms = [
                 'công suất điện', 'công suất làm lạnh', 'công suất sưởi', 'điện năng tiêu thụ',
@@ -1216,6 +1241,7 @@ if (lettersMatch) {
                     pageTexts[res.pageNum - 1] = res;
                 });
                 if (onProgress) onProgress(end, pdf.numPages);
+            await new Promise(r => setTimeout(r, 10)); // <-- THÊM DÒNG NÀY (để bấm chuột là ăn ngay)
             }
 
             if (cancelScanRequested) return pageTexts.map(p => p || { pageNum: 0, fullText: '', lowerText: '' });
@@ -1290,7 +1316,7 @@ async function searchPdfOnlyCore() {
             statusBar.style.justifyContent = 'space-between';
             statusBar.style.alignItems = 'center';
             statusBar.innerHTML = `<span>⚡ Đang bắt đầu quét ${sortedFiles.length} tài liệu PDF...</span>
-                <button onclick="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+                <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
 
             const appendCard = (file, pageNum, snippet, focusTerm, isFileNameMatch = false) => {
                 pdfMatchCount++;
@@ -1325,7 +1351,7 @@ async function searchPdfOnlyCore() {
                 const isFileNameMatch = !!(modelMatcher && modelMatcher.test('', file.name));
 
                 statusBar.innerHTML = `<span>⚡ Đang quét PDF (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b> (Khớp: ${pdfMatchCount})</span>
-                    <button onclick="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+                    <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
 
                 let filePageMatched = 0;
                 let modelOnlyPages = [];
@@ -1333,8 +1359,9 @@ async function searchPdfOnlyCore() {
                 try {
                     const pageTexts = await getPdfTextPages(file, (done, total) => {
     statusBar.innerHTML = `<span>⚡ Đang quét (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b> – trang ${done}/${total} (Khớp: ${pdfMatchCount})</span>
-        <button onclick="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+        <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
 });
+if (cancelScanRequested) break; // <-- THÊM DÒNG NÀY (bấm dừng là ngắt file ngay)
 
                     for (const pageData of pageTexts) {
                         if (!pageData || !pageData.lowerText) continue;
