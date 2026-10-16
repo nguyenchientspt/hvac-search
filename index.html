@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="vi">
 <head>
@@ -108,7 +109,7 @@
         .excel-table th { background: #263c2f; width: 55%; color: #81c784; font-weight: 600;}
         .excel-table td { background: #1a261e; font-family: Consolas, monospace; font-weight: bold; color: #fff; width: 45%;}
 
-        /* PDF Viewer & Office Preview */
+        /* PDF Viewer */
         .pdf-pane { flex: 1; min-width: 350px; background: #2a2a2a; display: flex; flex-direction: column; overflow: hidden; }
         .pdf-toolbar { padding: 6px 12px; background: #252526; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
         .pdf-btn-group { display: flex; align-items: center; gap: 6px; }
@@ -117,14 +118,12 @@
         .zoom-text { font-weight: bold; color: #5bc0be; font-size: 12px; min-width: 45px; text-align: center; }
         .page-jump-input { width: 74px; padding: 4px 6px; background: #1e1e1e; color: #fff; border: 1px solid var(--accent); border-radius: 4px; font-size: 12px; outline: none; }
         .page-jump-input:focus { border-color: #ff9800; }
-        .zoom-ghost { position: absolute; left: 0; top: 0; z-index: 9; pointer-events: none; }
         
-        /* CĂN GIỮA TOÀN DIỆN KHI ZOOM */
         .pdf-scroll-container { 
             flex: 1; 
             overflow: auto; 
             padding: 20px; 
-            text-align: center; /* Luôn căn giữa tài liệu */
+            text-align: center; 
             background: #333333; 
             cursor: grab; 
             user-select: none; 
@@ -136,9 +135,9 @@
             box-sizing: border-box; 
             padding: 10px; 
             color: #222; 
-            text-align: left; /* Nội dung bảng vẫn giữ căn trái */
+            text-align: left; 
             user-select: text; 
-            transform-origin: top center; /* Giữ tâm căn giữa khi zoom */
+            transform-origin: top center; 
         }
         .excel-preview-title { color: #5bc0be; font-weight: bold; margin: 0 0 10px; text-align: center; }
         .office-sheet-table { border-collapse: collapse; background: #fff; color: #222; font: 12px Calibri, Arial, sans-serif; width: max-content; min-width: 100%; table-layout: auto; }
@@ -152,7 +151,7 @@
             background: #fff; 
             box-shadow: 0 2px 10px rgba(0,0,0,0.5); 
             display: inline-block; 
-            margin: 0 auto 15px auto; /* Tự động căn giữa */
+            margin: 0 auto 15px auto; 
             position: relative; 
             text-align: left;
         }
@@ -163,7 +162,19 @@
         canvas { display: block; margin: 0 auto; }
         .highlight-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
         .pdf-highlight-box { position: absolute; background-color: rgba(255, 224, 102, 0.28); border: 1px solid rgba(210, 160, 0, 0.72); border-radius: 2px; }
+        
+        /* 1. Mây Đỏ: Điểm đang Next/Prev trúng tới */
         .pdf-highlight-current { background-color: rgba(229, 57, 53, 0.12) !important; border: 2px solid rgba(229, 57, 53, 0.65) !important; outline: none; z-index: 8; border-radius: 50px !important; box-shadow: 0 0 0 4px rgba(229, 57, 53, 0.18), 0 0 16px 4px rgba(229, 57, 53, 0.45); }
+        
+        /* 2. Đám mây Model (Màu xanh dịu, nổi bật) */
+        .pdf-highlight-model { 
+            background-color: rgba(0, 162, 255, 0.18) !important; 
+            border: 2px solid #00a2ff !important; 
+            border-radius: 50px !important; 
+            box-shadow: 0 0 0 3px rgba(0, 162, 255, 0.2), 0 0 16px 4px rgba(0, 162, 255, 0.6) !important; 
+            z-index: 7; 
+        }
+
         .preview-nav { display: none; align-items: center; gap: 5px; }
     </style>
 </head>
@@ -210,7 +221,7 @@
 
                 <!-- DANH SÁCH MODEL ĐÃ THÊM -->
                 <div id="searchModelListBox" style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-height: 130px; overflow-y: auto; background: #1e1e1e; border: 1px solid var(--border); border-radius: 4px; padding: 4px;">
-                    <div style="color: #666; font-size: 11px; text-align: center; padding: 6px;">Tìm nhiều model (Gõ rồi bấm Thêm +)</div>
+                    <div style="color: #666; font-size: 11px; text-align: center; padding: 6px;">Chưa có model (Gõ rồi bấm Thêm +)</div>
                 </div>
             </div>
 
@@ -269,7 +280,7 @@
             </div>
             
             <div id="tabPdf" class="tab-content active">
-                <p style="color:#777; text-align:center; margin-top:30px; line-height: 1.6;">Nhập từ khóa ở Bước 2 rồi bấm nút <b>"Tìm Trong PDF"</b> để xem kết quả.</p>
+                <p style="color:#777; text-align:center; margin-top:30px; line-height: 1.6;">Nhập Model hoặc Từ khóa rồi bấm nút <b>"Tìm Trong PDF"</b> để xem kết quả.</p>
             </div>
             <div id="tabExcel" class="tab-content">
                 <p style="color:#777; text-align:center; margin-top:30px; line-height: 1.6;">Chọn Model ở Bước 1 rồi bấm nút <b>"Trích Xuất Bảng Spec Excel"</b> để tạo bảng.</p>
@@ -321,7 +332,7 @@
         let renderTasks = {}; let pdfTextCache = {}; let parsedPdfDocCache = {};
         let excelDataSheets = []; let wordDataFiles = [];
 
-        /* ================= BỘ QUẢN LÝ DANH SÁCH THÔNG SỐ (ĐÃ CHUẨN HÓA TỪ KHÓA) ================= */
+        /* ================= BỘ QUẢN LÝ DANH SÁCH THÔNG SỐ ================= */
         const defaultSpecParams = [
             { id: "p1", name: "Công suất làm lạnh (Btu/h)", keys: ["công suất lạnh", "công suất làm lạnh", "cooling capacity", "cooling cap"], unitType: "btu", checked: false, deletable: true },
             { id: "p2", name: "Công suất làm lạnh (kW)", keys: ["công suất lạnh", "công suất làm lạnh", "cooling capacity", "cooling cap"], unitType: "kw", checked: true, deletable: false },
@@ -343,14 +354,9 @@
         let userSpecParams = [];
 
         function initParamsManager() {
-            // Nâng cấp lên v2 để bỏ toàn bộ bộ đệm từ khóa cũ gây lỗi
             const savedData = localStorage.getItem("HVACSearch_SpecParams_v2");
             if (savedData) {
-                try {
-                    userSpecParams = JSON.parse(savedData);
-                } catch(e) {
-                    userSpecParams = JSON.parse(JSON.stringify(defaultSpecParams));
-                }
+                try { userSpecParams = JSON.parse(savedData); } catch(e) { userSpecParams = JSON.parse(JSON.stringify(defaultSpecParams)); }
             } else {
                 userSpecParams = JSON.parse(JSON.stringify(defaultSpecParams));
             }
@@ -390,8 +396,7 @@
             }
             saveDataToLocalStorage();
             const activeModels = getActiveSearchModels();
-		const selectedModel = activeModels.join(', ');
-            if (selectedModel && document.getElementById('btnTabExcel').classList.contains('active')) {
+            if (activeModels.length > 0 && document.getElementById('btnTabExcel').classList.contains('active')) {
                  extractExcelOnly();
             }
         }
@@ -411,7 +416,6 @@
             saveDataToLocalStorage();
             renderParamsUI();
             refreshAutocompleteSuggestions();
-            
             const listElement = document.getElementById("listParamsHtml");
             listElement.scrollTop = 0;
         }
@@ -422,9 +426,8 @@
             saveDataToLocalStorage();
             renderParamsUI();
             refreshAutocompleteSuggestions();
-            
-            const selectedModel = document.getElementById('modelInput').value.trim();
-            if (selectedModel && document.getElementById('btnTabExcel').classList.contains('active')) {
+            const activeModels = getActiveSearchModels();
+            if (activeModels.length > 0 && document.getElementById('btnTabExcel').classList.contains('active')) {
                  extractExcelOnly();
             }
         }
@@ -435,36 +438,27 @@
             renderParamsUI();
         }
 
-        /* SO KHỚP CHÍNH XÁC: Loại trừ triệt để hiện tượng lẫn lộn thông số */
         function isRowMatchCheckedParam(normalizedLabel, p) {
             const isPowerInput = normalizedLabel.includes("tieu thu") || normalizedLabel.includes("dien nang") || normalizedLabel.includes("power input");
             const isCop = normalizedLabel.includes("cop") || normalizedLabel.includes("cspf") || normalizedLabel.includes("eer");
             const isHeating = normalizedLabel.includes("suoi") || normalizedLabel.includes("heating");
             const isCooling = normalizedLabel.includes("lanh") || normalizedLabel.includes("cooling");
 
-            // 1. Nếu tìm Công suất lạnh: Tuyệt đối bỏ qua Điện năng tiêu thụ, COP, và Sưởi
             if (p.id === "p1" || p.id === "p2") {
                 if (isPowerInput || isCop || isHeating) return false;
                 if (p.unitType === "btu" && !normalizedLabel.includes("btu")) return false;
                 if (p.unitType === "kw" && normalizedLabel.includes("btu")) return false;
             }
-
-            // 2. Nếu tìm Công suất sưởi: Tuyệt đối bỏ qua Điện năng tiêu thụ và Làm lạnh
             if (p.id === "p5") {
                 if (isPowerInput || isCop || !isHeating) return false;
             }
-
-            // 3. Nếu tìm Điện năng tiêu thụ làm lạnh: Phải có chữ tiêu thụ / điện năng và KHÔNG phải là sưởi
             if (p.id === "p3") {
                 if (!isPowerInput || isHeating) return false;
             }
-
-            // 4. Nếu tìm Điện năng tiêu thụ sưởi: Phải có chữ tiêu thụ / điện năng và CÓ chữ sưởi
             if (p.id === "p4") {
                 if (!isPowerInput || !isHeating) return false;
             }
 
-            // So khớp từ khóa chính
             return (p.keys || []).some(kw => {
                 const words = normalizeExcelSearchText(kw).split(' ').filter(Boolean);
                 return words.length > 0 && words.every(w => {
@@ -474,16 +468,6 @@
             });
         }
 
-        setTimeout(() => {
-            const txtNewParam = document.getElementById('txtNewParam');
-            if (txtNewParam) {
-                txtNewParam.addEventListener("keypress", function(event) {
-                    if (event.key === "Enter") { event.preventDefault(); addNewParam(); }
-                });
-            }
-        }, 100);
-
-        /* ================= TỪ ĐIỂN HVAC CHUẨN XÁC ================= */
         /* ================= TỪ ĐIỂN HVAC CHUẨN XÁC & ĐỒNG NGHĨA ================= */
         const hvacDictionary = {
             "electric": ["electric", "electrical", "characteristics", "power supply", "điện", "nguồn điện"],
@@ -515,7 +499,6 @@
             "bảo dưỡng": ["bảo dưỡng", "bao duong", "maintenance", "service manual", "hướng dẫn lắp đặt", "installation manual", "troubleshooting", "lỗi", "mã lỗi"]
         };
 
-        /* ================= BỘ LÀM SẠCH NHÃN & GIÁ TRỊ SPEC ================= */
         function cleanSpecLabel(label) {
             if (!label) return "";
             let s = String(label).trim().replace(/\s+/g, ' ');
@@ -579,7 +562,6 @@
             return typedCode.length >= 2 && cellCode.includes(typedCode);
         }
 
-        /* Bộ matcher model linh hoạt: Khớp cả series (RUR) lẫn model chi tiết (RUR10NY1) */
         function buildModelMatchers(rawModel) {
             if (!rawModel) return null;
             const clean = rawModel.trim().toLowerCase();
@@ -587,30 +569,27 @@
             if (!compact) return null;
 
             const regexes = [];
-const SEP = '[\\s\\-_]*';
-const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const lettersMatch = clean.match(/^([a-z]+)$/i);
-const fullMatch = clean.match(/^([a-z]+)[\s\-_]*([0-9]+)[\s\-_]*([a-z][a-z0-9]*)$/i);
-const letterNumMatch = clean.match(/^([a-z]+)[\s\-_]*([0-9]+)/i);
+            const SEP = '[\\s\\-_]*';
+            const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const lettersMatch = clean.match(/^([a-z]+)$/i);
+            const fullMatch = clean.match(/^([a-z]+)[\s\-_]*([0-9]+)[\s\-_]*([a-z][a-z0-9]*)$/i);
+            const letterNumMatch = clean.match(/^([a-z]+)[\s\-_]*([0-9]+)/i);
 
-if (lettersMatch) {
-    regexes.push(new RegExp('(?:^|[^a-z0-9])' + esc(lettersMatch[1]) + '[a-z0-9\\-_/]*', 'i'));
-} else if (fullMatch) {
-    regexes.push(new RegExp(
-        '(?:^|[^a-z0-9])' + esc(fullMatch[1]) + SEP + esc(fullMatch[2]) + SEP +
-        esc(fullMatch[3]) + '[a-z0-9]{0,2}(?:[^a-z0-9]|$)', 'i'));
-} else if (letterNumMatch) {
-    regexes.push(new RegExp(
-        '(?:^|[^a-z0-9])' + esc(letterNumMatch[1]) + SEP + esc(letterNumMatch[2]) + '[a-z0-9\\-_/]*', 'i'));
-} else {
-    regexes.push(new RegExp('(?:^|[^a-z0-9])' + esc(clean), 'i'));
-}
+            if (lettersMatch) {
+                regexes.push(new RegExp('(?:^|[^a-z0-9])' + esc(lettersMatch[1]) + '[a-z0-9\\-_/]*', 'i'));
+            } else if (fullMatch) {
+                regexes.push(new RegExp(
+                    '(?:^|[^a-z0-9])' + esc(fullMatch[1]) + SEP + esc(fullMatch[2]) + SEP +
+                    esc(fullMatch[3]) + '[a-z0-9]{0,2}(?:[^a-z0-9]|$)', 'i'));
+            } else if (letterNumMatch) {
+                regexes.push(new RegExp(
+                    '(?:^|[^a-z0-9])' + esc(letterNumMatch[1]) + SEP + esc(letterNumMatch[2]) + '[a-z0-9\\-_/]*', 'i'));
+            } else {
+                regexes.push(new RegExp('(?:^|[^a-z0-9])' + esc(clean), 'i'));
+            }
 
             return {
-                raw: rawModel,
-                clean,
-                compact,
-                regexes,
+                raw: rawModel, clean, compact, regexes,
                 test(text, fileName = '') {
                     if (fileName) {
                         const normFileName = fileName.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -671,7 +650,6 @@ if (lettersMatch) {
                 return valLower.includes(query) || valNoTone.includes(queryNoTone);
             });
 
-            // Ưu tiên: Từ nào BẮT ĐẦU bằng chữ bạn gõ (RXYQ...) và ngắn gọn sẽ xếp lên đầu tiên
             if (query) {
                 matches.sort((a, b) => {
                     const aStarts = a.toLowerCase().startsWith(query);
@@ -754,7 +732,6 @@ if (lettersMatch) {
                 'FVGR08NV1', 'FVGR10NV1', 'FVGR13NV1', 'FVGR15NV1', 'FVGR18NV1', 'FVGR20NV1', 'FVGR', 'FDN'
             ];
             
-            // Chỉ bắt đúng dạng Model HVAC (Vd: RXYQ10BYM, RXYQ-BYM, FBA50...), bỏ qua mã tài liệu
             const modelPattern = /\b([A-Z]{2,5}[0-9]+[A-Z0-9]*|[A-Z]{3,5}-[A-Z0-9]+)\b/g;
             const ignoreList = /^(EDTRVN|THIETKE|LAPDAT|CATALOG|BANGGIA|HUONGDAN|KYTHUAT|DAIKIN|MANUAL)/i;
             const models = [...defaultModels];
@@ -890,32 +867,22 @@ if (lettersMatch) {
                     permission = await handle.requestPermission({ mode: 'read' });
                 }
                 return permission === 'granted';
-            } catch (e) {
-                return false;
-            }
+            } catch (e) { return false; }
         }
 
         async function choosePdfFolder() {
-            if (!supportsPersistentPickers) {
-                document.getElementById('folderPicker').click();
-                return;
-            }
+            if (!supportsPersistentPickers) { document.getElementById('folderPicker').click(); return; }
             try {
                 sourceFolderHandle = await window.showDirectoryPicker({ mode: 'read' });
                 await saveSourceHandle('pdf-folder', sourceFolderHandle);
                 await refreshSourceFiles(true, true);
             } catch (error) {
-                if (error.name !== 'AbortError') {
-                    document.getElementById('folderPicker').click();
-                }
+                if (error.name !== 'AbortError') document.getElementById('folderPicker').click();
             }
         }
 
         async function chooseExcelFiles() {
-            if (!supportsPersistentPickers) {
-                document.getElementById('officePicker').click();
-                return;
-            }
+            if (!supportsPersistentPickers) { document.getElementById('officePicker').click(); return; }
             try {
                 const handles = await window.showOpenFilePicker({
                     multiple: true,
@@ -936,15 +903,11 @@ if (lettersMatch) {
                     updateStatusUI(`Đã nạp & ghi nhớ ${excelDataSheets.length} sheet Excel.`);
                 }
             } catch (error) {
-                if (error.name !== 'AbortError') {
-                    document.getElementById('officePicker').click();
-                }
+                if (error.name !== 'AbortError') document.getElementById('officePicker').click();
             }
         }
 
-        function handleOfficeSelectFallback(event) {
-            handleOfficeSelect(event);
-        }
+        function handleOfficeSelectFallback(event) { handleOfficeSelect(event); }
 
         async function parseExcelHandles(handles = excelFileHandles) {
             const sheets = [];
@@ -969,9 +932,7 @@ if (lettersMatch) {
             if (!sourceFolderHandle && !excelFileHandles.length) return;
             try {
                 let folderGranted = false;
-                if (sourceFolderHandle) {
-                    folderGranted = await ensureHandlePermission(sourceFolderHandle, requestPermission);
-                }
+                if (sourceFolderHandle) folderGranted = await ensureHandlePermission(sourceFolderHandle, requestPermission);
 
                 let accessibleExcelHandles = [];
                 for (const handle of excelFileHandles) {
@@ -984,15 +945,10 @@ if (lettersMatch) {
                     return;
                 }
 
-                const pdfFiles = folderGranted ? await collectPdfFiles(sourceFolderHandle) : allMasterFiles;
-                allMasterFiles = pdfFiles;
-                pdfTextCache = {}; 
-                parsedPdfDocCache = {}; 
-                currentPdfDoc = null;
+                allMasterFiles = folderGranted ? await collectPdfFiles(sourceFolderHandle) : allMasterFiles;
+                pdfTextCache = {}; parsedPdfDocCache = {}; currentPdfDoc = null;
 
-                if (accessibleExcelHandles.length) {
-                    await parseExcelHandles(accessibleExcelHandles);
-                }
+                if (accessibleExcelHandles.length) await parseExcelHandles(accessibleExcelHandles);
 
                 configureDocumentTypeFilter();
                 applyAllFilters();
@@ -1029,14 +985,7 @@ if (lettersMatch) {
             if (!confirm("Bạn có chắc chắn muốn xóa bộ nhớ các folder và file đã chọn?")) return;
             await removeSourceHandle('pdf-folder');
             await removeSourceHandle('excel-files');
-            
-            sourceFolderHandle = null;
-            excelFileHandles = [];
-            allMasterFiles = [];
-            loadedPdfFiles = [];
-            filteredPdfFiles = [];
-            excelDataSheets = [];
-            
+            sourceFolderHandle = null; excelFileHandles = []; allMasterFiles = []; loadedPdfFiles = []; filteredPdfFiles = []; excelDataSheets = [];
             document.getElementById('docTypeSelect').innerHTML = '<option value="ALL">🗂️ -- Tất cả PDF --</option>';
             document.getElementById('docTypeSelect').disabled = true;
             document.getElementById('tabPdf').innerHTML = '<p style="color:#777; text-align:center; margin-top:30px;">Dữ liệu đã được đặt lại.</p>';
@@ -1045,13 +994,9 @@ if (lettersMatch) {
         }
 
         if (document.readyState === 'loading') {
-            window.addEventListener('DOMContentLoaded', () => {
-                initParamsManager();
-                restoreSavedSources();
-            });
+            window.addEventListener('DOMContentLoaded', () => { initParamsManager(); restoreSavedSources(); });
         } else {
-            initParamsManager();
-            restoreSavedSources();
+            initParamsManager(); restoreSavedSources();
         }
 
         function updateStatusUI(message = '') {
@@ -1072,8 +1017,7 @@ if (lettersMatch) {
             
             for (const file of allMasterFiles) {
                 const rawPath = file.webkitRelativePath || file.name || '';
-                const normalized = rawPath.replace(/\\/g, '/');
-                const parts = normalized.split('/').filter(Boolean);
+                const parts = rawPath.replace(/\\/g, '/').split('/').filter(Boolean);
                 if (parts.length > 2) {
                     const subFolder = parts[1];
                     docTypeFolders.set(subFolder, (docTypeFolders.get(subFolder) || 0) + 1);
@@ -1081,37 +1025,25 @@ if (lettersMatch) {
             }
             
             select.innerHTML = '<option value="ALL">🗂️ -- Tất cả PDF --</option>';
-            const sortedFolders = Array.from(docTypeFolders.keys()).sort((a, b) => a.localeCompare(b, 'vi'));
-            sortedFolders.forEach(folder => {
-                const count = docTypeFolders.get(folder);
+            Array.from(docTypeFolders.keys()).sort((a, b) => a.localeCompare(b, 'vi')).forEach(folder => {
                 const opt = document.createElement('option');
-                opt.value = folder;
-                opt.textContent = `📁 ${folder} (${count})`;
+                opt.value = folder; opt.textContent = `📁 ${folder} (${docTypeFolders.get(folder)})`;
                 select.appendChild(opt);
             });
 
-            if (Array.from(select.options).some(o => o.value === previousSelection)) {
-                select.value = previousSelection;
-            } else {
-                select.value = 'ALL';
-            }
+            if (Array.from(select.options).some(o => o.value === previousSelection)) select.value = previousSelection;
+            else select.value = 'ALL';
             select.disabled = allMasterFiles.length === 0;
         }
 
         function applyAllFilters() {
-            if (allMasterFiles.length === 0) { 
-                loadedPdfFiles = []; 
-                filteredPdfFiles = []; 
-                return; 
-            }
+            if (allMasterFiles.length === 0) { loadedPdfFiles = []; filteredPdfFiles = []; return; }
             const docType = document.getElementById('docTypeSelect').value;
             if (docType === 'ALL') {
                 loadedPdfFiles = [...allMasterFiles];
             } else {
                 loadedPdfFiles = allMasterFiles.filter(file => {
-                    const rawPath = file.webkitRelativePath || file.name || '';
-                    const normalized = rawPath.replace(/\\/g, '/');
-                    const parts = normalized.split('/').filter(Boolean);
+                    const parts = (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').filter(Boolean);
                     return parts.length > 2 && parts[1] === docType;
                 });
             }
@@ -1126,9 +1058,8 @@ if (lettersMatch) {
                     if (name.startsWith('~') || name.startsWith('.')) continue;
                     const path = prefix ? `${prefix}/${name}` : name;
                     try {
-                        if (entry.kind === 'directory') {
-                            files.push(...await collectPdfFiles(entry, path));
-                        } else if (name.toLowerCase().endsWith('.pdf')) {
+                        if (entry.kind === 'directory') files.push(...await collectPdfFiles(entry, path));
+                        else if (name.toLowerCase().endsWith('.pdf')) {
                             const file = await entry.getFile();
                             Object.defineProperty(file, 'webkitRelativePath', {value:`${directoryHandle.name}/${path}`});
                             files.push(file);
@@ -1143,9 +1074,7 @@ if (lettersMatch) {
             sourceFolderHandle = null; 
             allMasterFiles = Array.from(event.target.files).filter(file => file.name.toLowerCase().endsWith('.pdf') && !file.name.startsWith('~'));
             pdfTextCache = {}; parsedPdfDocCache = {}; 
-            configureDocumentTypeFilter(); 
-            applyAllFilters(); 
-            refreshAutocompleteSuggestions(); 
+            configureDocumentTypeFilter(); applyAllFilters(); refreshAutocompleteSuggestions(); 
             updateStatusUI('Folder đã nạp xong.');
         }
 
@@ -1182,7 +1111,7 @@ if (lettersMatch) {
             }
         }
 
-        /* ================= BỘ ĐỌC VÀ TRÍCH XUẤT TEXT PDF TỐC ĐỘ CAO (CÓ CACHE INDEXEDDB) ================= */
+        /* ================= BỘ ĐỌC VÀ TRÍCH XUẤT TEXT PDF TỐC ĐỘ CAO ================= */
         const PDF_JS_CONFIG = {
             cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/cmaps/',
             cMapPacked: true,
@@ -1203,14 +1132,12 @@ if (lettersMatch) {
             const cacheKey = `${file.name}_${file.size || 0}_${file.lastModified || 0}`;
             if (pdfTextCache[cacheKey]) return pdfTextCache[cacheKey];
 
-            // 1. Kiểm tra bộ nhớ đệm vĩnh viễn trong IndexedDB (Tốc độ tức thì ~0.005s)
             const cachedFromDb = await getCachedPdfText(cacheKey);
             if (cachedFromDb && Array.isArray(cachedFromDb) && cachedFromDb.length > 0) {
                 pdfTextCache[cacheKey] = cachedFromDb;
                 return cachedFromDb;
             }
 
-            // 2. Trích xuất text từ file PDF với hỗ trợ đầy đủ Font Châu Á & CMap của Daikin
             const pdfDocKey = file.webkitRelativePath || file.name;
             const arrayBuffer = await file.arrayBuffer();
             const pdf = parsedPdfDocCache[pdfDocKey] || await pdfjsLib.getDocument({
@@ -1220,7 +1147,7 @@ if (lettersMatch) {
             parsedPdfDocCache[pdfDocKey] = pdf;
 
             const pageTexts = new Array(pdf.numPages);
-            const BATCH_SIZE = 12; // Quét song song 12 trang mỗi batch để tăng tốc tối đa
+            const BATCH_SIZE = 12;
 
             for (let start = 1; start <= pdf.numPages; start += BATCH_SIZE) {
                 if (cancelScanRequested) break;
@@ -1230,13 +1157,10 @@ if (lettersMatch) {
                     batchPromises.push(
                         pdf.getPage(pageNum).then(async (page) => {
                             try {
-                                const content = await page.getTextContent({
-                                    normalizeWhitespace: true,
-                                    disableCombineTextItems: false
-                                });
+                                const content = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
                                 const fullText = (content.items || []).map(item => item.str || '').join(' ');
                                 const lowerText = fullText.toLowerCase();
-                                page.cleanup(); // Giải phóng RAM trang ngay lập tức
+                                page.cleanup();
                                 return { pageNum, fullText, lowerText };
                             } catch (err) {
                                 try { page.cleanup(); } catch(e){}
@@ -1246,20 +1170,18 @@ if (lettersMatch) {
                     );
                 }
                 const batchResults = await Promise.all(batchPromises);
-                batchResults.forEach(res => {
-                    pageTexts[res.pageNum - 1] = res;
-                });
+                batchResults.forEach(res => { pageTexts[res.pageNum - 1] = res; });
                 if (onProgress) onProgress(end, pdf.numPages);
-            await new Promise(r => setTimeout(r, 10)); // <-- THÊM DÒNG NÀY (để bấm chuột là ăn ngay)
+                await new Promise(r => setTimeout(r, 10));
             }
 
             if (cancelScanRequested) return pageTexts.map(p => p || { pageNum: 0, fullText: '', lowerText: '' });
-pdfTextCache[cacheKey] = pageTexts;
-setCachedPdfText(cacheKey, pageTexts);
-return pageTexts;
+            pdfTextCache[cacheKey] = pageTexts;
+            setCachedPdfText(cacheKey, pageTexts);
+            return pageTexts;
         }
 
-/* ================= QUẢN LÝ DANH SÁCH MODEL TÌM KIẾM ================= */
+        /* ================= QUẢN LÝ DANH SÁCH MODEL TÌM KIẾM ================= */
         let searchModelList = [];
 
         function renderSearchModelList() {
@@ -1287,11 +1209,12 @@ return pageTexts;
             const input = document.getElementById('modelInput');
             const val = input.value.trim();
             if (!val) return;
-            
-            // Hỗ trợ gõ 1 model hoặc paste chuỗi nhiều model cách nhau bằng dấu phẩy
             const parts = val.split(/[,;|\n]+/).map(m => m.trim().toUpperCase()).filter(Boolean);
             parts.forEach(p => {
-                if (!searchModelList.includes(p)) searchModelList.push(p);
+                // Bỏ qua các chuỗi quá ngắn hoặc thuần túy là số (như "10")
+                if (p.length >= 2 && !/^\d+$/.test(p) && !searchModelList.includes(p)) {
+                    searchModelList.push(p);
+                }
             });
             input.value = '';
             renderSearchModelList();
@@ -1311,213 +1234,193 @@ return pageTexts;
             }
         }
 
-        // Hàm gom toàn bộ model cần tìm (từ danh sách, nếu danh sách trống thì lấy trực tiếp ô input)
         function getActiveSearchModels() {
-            if (searchModelList.length > 0) return [...searchModelList];
+            const list = [...searchModelList];
             const raw = document.getElementById('modelInput').value.trim();
-            return raw ? raw.split(/[,;|\n]+/).map(m => m.trim().toUpperCase()).filter(Boolean) : [];
+            if (raw) {
+                const parts = raw.split(/[,;|\n]+/).map(m => m.trim().toUpperCase()).filter(Boolean);
+                parts.forEach(p => { 
+                    // Chặn lọc số thuần túy như "10"
+                    if (p.length >= 2 && !/^\d+$/.test(p) && !list.includes(p)) list.push(p); 
+                });
+            }
+            return list;
         }
 
-        /* ================= TÌM KIẾM TRONG PDF (SIÊU TỐC & KHÔNG BỎ SÓT MODEL) ================= */
-async function searchPdfOnly() {
-    try { await searchPdfOnlyCore(); }
-    catch (e) {
-        console.error(e);
-        const sb = document.getElementById('searchStatusBar');
-        sb.style.display = 'block';
-        sb.innerHTML = '❌ Lỗi khi quét PDF: ' + e.message;
-    }
-}
+        /* ================= TÌM KIẾM TRONG PDF ================= */
+        async function searchPdfOnly() {
+            try { await searchPdfOnlyCore(); }
+            catch (e) {
+                console.error(e);
+                const sb = document.getElementById('searchStatusBar');
+                sb.style.display = 'block';
+                sb.innerHTML = '❌ Lỗi khi quét PDF: ' + e.message;
+            }
+        }
 
-async function searchPdfOnlyCore() {
-    // 👉 1. ĐỌC TẤT CẢ MODEL TỪ DANH SÁCH ĐÃ THÊM:
-    const activeModels = getActiveSearchModels();
-    const queryPdf = document.getElementById('queryInput').value.trim();
-    const tabPdf = document.getElementById('tabPdf');
-    const statusBar = document.getElementById('searchStatusBar');
+        async function searchPdfOnlyCore() {
+            const activeModels = getActiveSearchModels();
+            const queryPdf = document.getElementById('queryInput').value.trim();
+            const tabPdf = document.getElementById('tabPdf');
+            const statusBar = document.getElementById('searchStatusBar');
 
-    // Bắt buộc phải có ít nhất 1 Model và 1 Từ khóa
-    if (activeModels.length === 0 || !queryPdf) {
-        alert("⚠️ Bạn phải nhập đầy đủ cả Model ở bước 1 và Từ khóa ở Bước 2 mới tìm được!");
-        return;
-    }
+            if (activeModels.length === 0 && !queryPdf) {
+                alert("⚠️ Vui lòng nhập Model ở Bước 1 HOẶC Từ khóa ở Bước 2 để tìm kiếm!");
+                return;
+            }
 
-    switchTab('tabPdf');
-    document.getElementById('pdfControls').style.display = 'flex';
-    document.getElementById('officeControls').style.display = 'none';
-    tabPdf.innerHTML = '';
-    previewHits = []; activePreviewHitIndex = -1; activePreviewHit = null; syncPreviewNavigator();
-    document.getElementById('badgePdf').innerText = '(0)';
+            switchTab('tabPdf');
+            document.getElementById('pdfControls').style.display = 'flex';
+            document.getElementById('officeControls').style.display = 'none';
+            tabPdf.innerHTML = '';
+            previewHits = []; activePreviewHitIndex = -1; activePreviewHit = null; syncPreviewNavigator();
+            document.getElementById('badgePdf').innerText = '(0)';
 
-    if (filteredPdfFiles.length === 0) {
-        tabPdf.innerHTML = '<p style="color:#f88; text-align:center; margin-top:20px;">Chưa nạp tài liệu PDF nào hoặc bộ lọc không có file.</p>';
-        statusBar.style.display = 'block';
-        statusBar.innerHTML = '❌ Chưa có file PDF để quét.';
-        return;
-    }
+            if (filteredPdfFiles.length === 0) {
+                tabPdf.innerHTML = '<p style="color:#f88; text-align:center; margin-top:20px;">Chưa nạp tài liệu PDF nào hoặc bộ lọc không có file.</p>';
+                statusBar.style.display = 'block';
+                statusBar.innerHTML = '❌ Chưa có file PDF để quét.';
+                return;
+            }
 
-    // 👉 2. TẠO BỘ NHẬN DIỆN CHO TẤT CẢ CÁC MODEL TRONG DANH SÁCH:
-    const modelMatchers = activeModels.map(m => buildModelMatchers(m)).filter(Boolean);
-    const queryTerms = expandBilingualTermsFast(queryPdf);
+            const modelMatchers = activeModels.map(m => buildModelMatchers(m)).filter(Boolean);
+            const queryTerms = expandBilingualTermsFast(queryPdf);
 
-    activeHighlightTerms = [...new Set([
-        ...queryTerms,
-        ...activeModels.flatMap(m => [m.toLowerCase(), m.replace(/[^a-z0-9]/g, '').toLowerCase()])
-    ])].filter(Boolean);
+            // 👉 LỌC SẠCH: Tuyệt đối không cho phép số ngắn như "10" lọt vào danh sách khoanh màu
+            activeHighlightTerms = [...new Set([
+                ...queryTerms,
+                ...activeModels.flatMap(m => [m.toLowerCase(), m.replace(/[^a-z0-9]/g, '').toLowerCase()])
+            ])].filter(t => t && t.length >= 2 && !/^\d+$/.test(t));
 
-    // Ưu tiên quét các file có tên chứa Model hoặc Từ khóa
-    const sortedFiles = [...filteredPdfFiles].sort((a, b) => {
-        const aName = a.name.toLowerCase();
-        const bName = b.name.toLowerCase();
-        const aScore = (modelMatchers.some(mm => mm.test('', a.name)) ? 10 : 0) +
-                       (queryTerms.some(t => aName.includes(t)) ? 5 : 0);
-        const bScore = (modelMatchers.some(mm => mm.test('', b.name)) ? 10 : 0) +
-                       (queryTerms.some(t => bName.includes(t)) ? 5 : 0);
-        return bScore - aScore;
-    });
-
-    isPdfScanning = true;
-    cancelScanRequested = false;
-    let pdfMatchCount = 0;
-    const modelOnlyResults = [];
-
-    statusBar.style.display = 'flex';
-    statusBar.style.justifyContent = 'space-between';
-    statusBar.style.alignItems = 'center';
-    statusBar.innerHTML = `<span>⚡ Đang bắt đầu quét ${sortedFiles.length} tài liệu PDF...</span>
-        <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
-
-    const appendCard = (file, pageNum, snippet, focusTerm, isFileNameMatch = false) => {
-        pdfMatchCount++;
-        document.getElementById('badgePdf').innerText = `(${pdfMatchCount})`;
-
-        const card = document.createElement('div');
-        card.className = 'answer-card';
-        if (isFileNameMatch) card.style.borderLeft = '4px solid #5bc0be';
-        
-        const safeFile = String(file.name).replace(/"/g, '&quot;');
-        const highlightSnippet = snippet.replace(new RegExp(`(${activeHighlightTerms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi'), m => `<mark>${m}</mark>`);
-
-        card.innerHTML = `
-            <div class="card-header">
-                <span class="card-file">📄 ${file.name}</span>
-                <span class="card-page">${isFileNameMatch ? 'Khớp tên file' : `Trang ${pageNum}`}</span>
-            </div>
-            <div class="card-snippet">${highlightSnippet}</div>
-            <div class="card-actions">
-                <button class="btn-card btn-card-copy" onclick="copyCardSnippet(this, '${encodeURIComponent(snippet)}')">📋 Copy Text</button>
-                <button class="btn-card btn-card-view" onclick="openPdfResult('${safeFile}', ${pageNum})">👁️ Xem bản gốc</button>
-            </div>`;
-        tabPdf.appendChild(card);
-    };
-
-    for (let i = 0; i < sortedFiles.length; i++) {
-        if (cancelScanRequested) break;
-        const file = sortedFiles[i];
-        const isFileNameMatch = modelMatchers.some(mm => mm.test('', file.name));
-
-        statusBar.innerHTML = `<span>⚡ Đang quét PDF (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b> (Khớp: ${pdfMatchCount})</span>
-            <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
-
-        let filePageMatched = 0;
-        let modelOnlyPages = [];
-
-        try {
-            const pageTexts = await getPdfTextPages(file, (done, total) => {
-                statusBar.innerHTML = `<span>⚡ Đang quét (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b> – trang ${done}/${total} (Khớp: ${pdfMatchCount})</span>
-                    <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+            const sortedFiles = [...filteredPdfFiles].sort((a, b) => {
+                const aName = a.name.toLowerCase();
+                const bName = b.name.toLowerCase();
+                const aScore = (modelMatchers.some(mm => mm.test('', a.name)) ? 10 : 0) + (queryTerms.some(t => aName.includes(t)) ? 5 : 0);
+                const bScore = (modelMatchers.some(mm => mm.test('', b.name)) ? 10 : 0) + (queryTerms.some(t => bName.includes(t)) ? 5 : 0);
+                return bScore - aScore;
             });
-            if (cancelScanRequested) break;
 
-            for (const pageData of pageTexts) {
+            isPdfScanning = true; cancelScanRequested = false; let pdfMatchCount = 0; const modelOnlyResults = [];
+
+            statusBar.style.display = 'flex';
+            statusBar.style.justifyContent = 'space-between';
+            statusBar.style.alignItems = 'center';
+            statusBar.innerHTML = `<span>⚡ Đang bắt đầu quét ${sortedFiles.length} tài liệu PDF...</span>
+                <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+
+            const appendCard = (file, pageNum, snippet, focusTerm, isFileNameMatch = false) => {
+                pdfMatchCount++;
+                document.getElementById('badgePdf').innerText = `(${pdfMatchCount})`;
+
+                const card = document.createElement('div');
+                card.className = 'answer-card';
+                if (isFileNameMatch) card.style.borderLeft = '4px solid #5bc0be';
+                
+                const safeFile = String(file.name).replace(/"/g, '&quot;');
+                const highlightSnippet = snippet.replace(new RegExp(`(${activeHighlightTerms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi'), m => `<mark>${m}</mark>`);
+
+                card.innerHTML = `
+                    <div class="card-header">
+                        <span class="card-file">📄 ${file.name}</span>
+                        <span class="card-page">${isFileNameMatch ? 'Khớp tên file' : `Trang ${pageNum}`}</span>
+                    </div>
+                    <div class="card-snippet">${highlightSnippet}</div>
+                    <div class="card-actions">
+                        <button class="btn-card btn-card-copy" onclick="copyCardSnippet(this, '${encodeURIComponent(snippet)}')">📋 Copy Text</button>
+                        <button class="btn-card btn-card-view" onclick="openPdfResult('${safeFile}', ${pageNum})">👁️ Xem bản gốc</button>
+                    </div>`;
+                tabPdf.appendChild(card);
+            };
+
+            for (let i = 0; i < sortedFiles.length; i++) {
                 if (cancelScanRequested) break;
-                if (!pageData || !pageData.lowerText) continue;
+                const file = sortedFiles[i];
+                const isFileNameMatch = modelMatchers.some(mm => mm.test('', file.name));
 
-                // 👉 3. KHỚP NẾU CÓ BẤT KỲ MODEL NÀO TRONG DANH SÁCH XUẤT HIỆN:
-                const isModelMatch = modelMatchers.length > 0 
-                    ? modelMatchers.some(mm => mm.test(pageData.lowerText, '')) 
-                    : true;
+                statusBar.innerHTML = `<span>⚡ Đang quét PDF (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b> (Khớp: ${pdfMatchCount})</span>
+                    <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
 
-                const matchedTerm = queryTerms.length > 0 
-                    ? queryTerms.find(t => pageData.lowerText.includes(t)) 
-                    : true;
+                let filePageMatched = 0; let modelOnlyPages = [];
 
-                if (isModelMatch && matchedTerm) {
-                    filePageMatched++;
-                    const termsOnPage = queryTerms.length 
-                        ? queryTerms.filter(term => pageData.lowerText.includes(term)) 
-                        : activeModels.map(m => m.toLowerCase());
+                try {
+                    const pageTexts = await getPdfTextPages(file, (done, total) => {
+                        statusBar.innerHTML = `<span>⚡ Đang quét (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b> – trang ${done}/${total} (Khớp: ${pdfMatchCount})</span>
+                            <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+                    });
+                    if (cancelScanRequested) break;
 
-                    for (const term of termsOnPage) {
-                        let from = 0, occurrenceIndex = 0, foundAt;
-                        while ((foundAt = pageData.lowerText.indexOf(term, from)) !== -1 && previewHits.length < 2000) {
-                            previewHits.push({ fileName: file.name, pageNum: pageData.pageNum, term, occurrenceIndex });
-                            occurrenceIndex++;
-                            from = foundAt + Math.max(1, term.length);
+                    for (const pageData of pageTexts) {
+                        if (cancelScanRequested) break;
+                        if (!pageData || !pageData.lowerText) continue;
+
+                        const isModelMatch = modelMatchers.length > 0 ? modelMatchers.some(mm => mm.test(pageData.lowerText, '')) : true;
+                        const matchedTerm = queryTerms.length > 0 ? queryTerms.find(t => pageData.lowerText.includes(t)) : true;
+
+                        if (isModelMatch && matchedTerm) {
+                            filePageMatched++;
+                            const termsOnPage = queryTerms.length ? queryTerms.filter(term => pageData.lowerText.includes(term)) : activeModels.map(m => m.toLowerCase());
+
+                            for (const term of termsOnPage) {
+                                let from = 0, occurrenceIndex = 0, foundAt;
+                                while ((foundAt = pageData.lowerText.indexOf(term, from)) !== -1 && previewHits.length < 2000) {
+                                    previewHits.push({ fileName: file.name, pageNum: pageData.pageNum, term, occurrenceIndex });
+                                    occurrenceIndex++;
+                                    from = foundAt + Math.max(1, term.length);
+                                }
+                            }
+
+                            let focusTerm = typeof matchedTerm === 'string' ? matchedTerm : (activeModels[0] || '');
+                            let pos = focusTerm ? pageData.lowerText.indexOf(focusTerm.toLowerCase()) : 0;
+                            if (pos < 0) pos = 0;
+                            let startPos = Math.max(0, pos - 80);
+                            let snippet = pageData.fullText.substring(startPos, startPos + 260).replace(/\s+/g, ' ');
+                            if (!snippet.trim()) snippet = `Trang ${pageData.pageNum}: Khớp kết quả tìm kiếm`;
+
+                            appendCard(file, pageData.pageNum, snippet, focusTerm, false);
+                            if (pdfMatchCount >= 40) break;
+                        } else if (isModelMatch) {
+                            modelOnlyPages.push({ pageNum: pageData.pageNum, fullText: pageData.fullText || '' });
                         }
                     }
 
-                    let focusTerm = typeof matchedTerm === 'string' ? matchedTerm : activeModels[0];
-                    let pos = focusTerm ? pageData.lowerText.indexOf(focusTerm.toLowerCase()) : 0;
-                    if (pos < 0) pos = 0;
-                    let startPos = Math.max(0, pos - 80);
-                    let snippet = pageData.fullText.substring(startPos, startPos + 260).replace(/\s+/g, ' ');
-                    if (!snippet.trim()) snippet = `Trang ${pageData.pageNum}: Khớp Model trong danh sách`;
+                    if (modelOnlyPages.length) modelOnlyResults.push({ file, pages: modelOnlyPages });
+                    if (filePageMatched === 0 && isFileNameMatch) {
+                        appendCard(file, 1, `📌 Tên file khớp Model: <b>${file.name}</b>. Nhấn "Xem bản gốc" để xem.`, activeModels[0] || '', true);
+                    }
+                } catch (e) {}
+                if (pdfMatchCount >= 40) break;
+            }
 
-                    appendCard(file, pageData.pageNum, snippet, focusTerm, false);
-                    if (pdfMatchCount >= 40) break;
-                } else if (isModelMatch) {
-                    modelOnlyPages.push({ pageNum: pageData.pageNum, fullText: pageData.fullText || '' });
+            isPdfScanning = false;
+
+            if (pdfMatchCount === 0 && modelOnlyResults.length && modelMatchers.length > 0) {
+                let emitted = 0;
+                outer: for (const mr of modelOnlyResults) {
+                    for (const p of mr.pages) {
+                        if (emitted >= 25) break outer;
+                        previewHits.push({ fileName: mr.file.name, pageNum: p.pageNum, term: (activeModels[0] || '').toLowerCase(), occurrenceIndex: 0 });
+                        let snippet = p.fullText ? p.fullText.substring(0, 260).replace(/\s+/g, ' ') : `Trang ${p.pageNum}: Khớp Model`;
+                        appendCard(mr.file, p.pageNum, snippet, activeModels[0] || '', false);
+                        emitted++;
+                    }
                 }
             }
 
-            if (modelOnlyPages.length) modelOnlyResults.push({ file, pages: modelOnlyPages });
-
-            if (filePageMatched === 0 && isFileNameMatch) {
-                appendCard(file, 1, `📌 Tên file khớp Model: <b>${file.name}</b>. Nhấn "Xem bản gốc" để xem.`, activeModels[0], true);
+            if (pdfMatchCount === 0) {
+                tabPdf.innerHTML = `<p style="text-align:center; margin-top:20px; line-height:1.6; color:#ddd;">❌ Không tìm thấy kết quả phù hợp cho yêu cầu của bạn.</p>`;
             }
-        } catch (e) {}
 
-        if (pdfMatchCount >= 40) break;
-    }
-
-    isPdfScanning = false;
-
-    if (pdfMatchCount === 0 && modelOnlyResults.length && modelMatchers.length > 0) {
-        let emitted = 0;
-        outer: for (const mr of modelOnlyResults) {
-            for (const p of mr.pages) {
-                if (emitted >= 25) break outer;
-                previewHits.push({ fileName: mr.file.name, pageNum: p.pageNum, term: activeModels[0].toLowerCase(), occurrenceIndex: 0 });
-                let snippet = p.fullText ? p.fullText.substring(0, 260).replace(/\s+/g, ' ') : `Trang ${p.pageNum}: Khớp Model`;
-                appendCard(mr.file, p.pageNum, snippet, activeModels[0], false);
-                emitted++;
-            }
+            statusBar.innerHTML = cancelScanRequested ? `⏹️ Đã dừng quét. Tìm thấy ${pdfMatchCount} kết quả.` : `✅ Đã quét xong PDF! Tìm thấy ${pdfMatchCount} kết quả.`;
+            if (previewHits.length) navigatePreviewHit(0, true);
         }
-    }
 
-    if (pdfMatchCount === 0) {
-        tabPdf.innerHTML = `<p style="text-align:center; margin-top:20px; line-height:1.6; color:#ddd;">
-            ❌ Không tìm thấy kết quả phù hợp cho [${activeModels.join(', ')}] và từ khóa "${queryPdf}".
-        </p>`;
-    }
-
-    statusBar.innerHTML = cancelScanRequested 
-        ? `⏹️ Đã dừng quét. Tìm thấy ${pdfMatchCount} kết quả.` 
-        : `✅ Đã quét xong PDF! Tìm thấy ${pdfMatchCount} kết quả.`;
-
-    if (previewHits.length) navigatePreviewHit(0, true);
-}
-
-
-        /* ================= HÀM LẤY NHÃN THÔNG SỐ (CỘT A & B) ================= */
+        /* ================= HÀM LẤY NHÃN THÔNG SỐ EXCEL ================= */
         function getRowSpecLabel(matrix, r, targetCol) {
             let labelParts = [];
             const maxLabelCol = Math.min(targetCol, 2);
             for (let c = 0; c < maxLabelCol; c++) {
                 let cellVal = String(matrix[r]?.[c] || "").trim();
                 if (!cellVal) continue;
-                
                 const normCell = normalizeExcelSearchText(cellVal);
                 const isDup = labelParts.some(part => {
                     const normPart = normalizeExcelSearchText(part);
@@ -1531,7 +1434,7 @@ async function searchPdfOnlyCore() {
         /* ================= TÌM TỪ KHÓA TRONG OFFICE ================= */
         function searchExcelWord() {
             const query = document.getElementById('officeQueryInput').value.trim();
-            const typedModel = document.getElementById('modelInput').value.trim();
+            const typedModel = getActiveSearchModels().join(', ');
             const tab = document.getElementById('tabExcel');
             const status = document.getElementById('searchStatusBar');
 
@@ -1539,7 +1442,6 @@ async function searchPdfOnlyCore() {
                 alert('Vui lòng nhập từ khóa cần tìm trong file Office (hoặc nhập Model).');
                 return;
             }
-
             if (!query && typedModel) {
                 extractExcelOnly();
                 return;
@@ -1561,9 +1463,7 @@ async function searchPdfOnlyCore() {
                 const body = document.createElement('div'); body.className = 'card-snippet'; body.style.whiteSpace = 'pre-wrap';
                 
                 let textToShow = snippet;
-                if (hitVal !== undefined && hitVal !== null && hitVal !== '') {
-                    textToShow = `${snippet} : ${hitVal}`;
-                }
+                if (hitVal !== undefined && hitVal !== null && hitVal !== '') textToShow = `${snippet} : ${hitVal}`;
 
                 const lower = textToShow.toLowerCase();
                 const index = hitTerm ? lower.indexOf(hitTerm.toLowerCase()) : -1;
@@ -1610,7 +1510,6 @@ async function searchPdfOnlyCore() {
                     for (const loc of modelLocations) {
                         const targetCol = loc.col;
                         const headerRow = loc.row;
-
                         const maxScanRow = Math.min(matrix.length, headerRow + 50);
                         for (let r = headerRow + 1; r < maxScanRow; r++) {
                             const rawVal = matrix[r]?.[targetCol];
@@ -1626,23 +1525,12 @@ async function searchPdfOnlyCore() {
 
                             if (matchedTerm) {
                                 excelHits++;
-                                previewHits.push({
-                                    type: 'excel',
-                                    sheetName: sheet.sheetName,
-                                    matrix,
-                                    sheet,
-                                    rowIdx: headerRow,
-                                    colIdx: targetCol,
-                                    headerRow: r,
-                                    specRows: [r],
-                                    searchTerm: matchedTerm
-                                });
+                                previewHits.push({ type: 'excel', sheetName: sheet.sheetName, matrix, sheet, rowIdx: headerRow, colIdx: targetCol, headerRow: r, specRows: [r], searchTerm: matchedTerm });
                                 addTextCard(`📊 Excel · ${sheet.sheetName} · Model: ${loc.text} · Hàng ${r + 1}`, cleanSpecLabel(rowLabel), matchedTerm, cleanSpecValue(valStr), previewHits.length - 1);
                             }
                         }
                     }
                 } else {
-                    // Nếu người dùng chỉ nhập từ khóa tìm kiếm (không nhập Model)
                     const maxRows = Math.min(matrix.length, 3000);
                     for (let r = 0; r < maxRows; r++) {
                         const row = matrix[r] || [];
@@ -1653,17 +1541,7 @@ async function searchPdfOnlyCore() {
                             const matchedTerm = terms.find(t => norm.includes(t));
                             if (matchedTerm) {
                                 excelHits++;
-                                previewHits.push({
-                                    type: 'excel',
-                                    sheetName: sheet.sheetName,
-                                    matrix,
-                                    sheet,
-                                    rowIdx: r,
-                                    colIdx: c,
-                                    headerRow: r,
-                                    specRows: [r],
-                                    searchTerm: matchedTerm
-                                });
+                                previewHits.push({ type: 'excel', sheetName: sheet.sheetName, matrix, sheet, rowIdx: r, colIdx: c, headerRow: r, specRows: [r], searchTerm: matchedTerm });
                                 addTextCard(`📊 Excel · ${sheet.sheetName} · Ô [Cột ${c + 1}, Hàng ${r + 1}]`, cellVal, matchedTerm, '', previewHits.length - 1);
                                 if (excelHits >= 50) break;
                             }
@@ -1674,7 +1552,6 @@ async function searchPdfOnlyCore() {
                 if (excelHits >= 50) break;
             }
 
-            // Quét trong file Word / DOCX (nếu có nạp)
             if (wordDataFiles && wordDataFiles.length > 0) {
                 for (const doc of wordDataFiles) {
                     const fullText = doc.text || '';
@@ -1697,12 +1574,10 @@ async function searchPdfOnlyCore() {
                 : `Tìm thấy ${excelHits} ô trong Excel và ${wordHits} file Word khớp từ khóa "${query}".`;
         }
 
-        /* ================= TRÍCH XUẤT SPEC CHÍNH XÁC THEO TỪNG THÔNG SỐ ĐƯỢC CHỌN ================= */
+        /* ================= TRÍCH XUẤT SPEC CHÍNH XÁC ================= */
         function extractExcelSpec(modelClean) {
             if (!modelClean || excelDataSheets.length === 0) return null;
             let specData = [];
-            
-            // Lấy danh sách các thông số đang được TÍCH CHỌN
             const activeParams = userSpecParams.filter(p => p.checked);
             if (activeParams.length === 0) return null;
 
@@ -1746,14 +1621,10 @@ async function searchPdfOnlyCore() {
                         const normalizedLabel = normalizeExcelSearchText(fullLabel);
                         if (normalizedLabel === "thong so don vi" || normalizedLabel === "thong so" || normalizedLabel === "don vi") continue;
 
-                        // SO KHỚP CHÍNH XÁC: Chỉ lấy nếu khớp với một trong các ô được tích chọn
                         const matchedParam = activeParams.find(p => isRowMatchCheckedParam(normalizedLabel, p));
-
                         if (matchedParam) {
                             const cleanVal = cleanSpecValue(valStr);
                             const cleanLbl = cleanSpecLabel(fullLabel);
-
-                            // Chống trùng lặp nhãn
                             const exists = currentParams.some(p => p.label.toLowerCase() === cleanLbl.toLowerCase());
                             if (!exists && cleanVal) {
                                 currentParams.push({ label: cleanLbl, value: cleanVal });
@@ -1764,24 +1635,12 @@ async function searchPdfOnlyCore() {
 
                     if (currentParams.length > bestParams.length) {
                         bestParams = currentParams;
-                        bestPreview = {
-                            modelRow: headerRow,
-                            modelColIdx: targetCol,
-                            headerRow: hitRows.length ? hitRows[0] : headerRow,
-                            specRows: hitRows,
-                            valueCols: [targetCol]
-                        };
+                        bestPreview = { modelRow: headerRow, modelColIdx: targetCol, headerRow: hitRows.length ? hitRows[0] : headerRow, specRows: hitRows, valueCols: [targetCol] };
                     }
                 }
 
                 if (bestParams.length > 0) {
-                    specData.push({
-                        sheetName: sheetObj.sheetName,
-                        params: bestParams,
-                        preview: bestPreview,
-                        matrix,
-                        sheet: sheetObj
-                    });
+                    specData.push({ sheetName: sheetObj.sheetName, params: bestParams, preview: bestPreview, matrix, sheet: sheetObj });
                 }
             }
             return specData;
@@ -1937,8 +1796,7 @@ async function searchPdfOnlyCore() {
             uniqueColumns.forEach((col, idx) => {
                 const colLetter = getColLetter(idx + 1);
                 ws[`${colLetter}4`] = {
-                    v: col.name,
-                    t: "s",
+                    v: col.name, t: "s",
                     s: { font: { bold: true, sz: 12, color: { rgb: "FFE066" } }, fill: { fgColor: { rgb: "1E4620" } }, border: thinBorder, alignment: { horizontal: "center", vertical: "center" } }
                 };
             });
@@ -1971,7 +1829,7 @@ async function searchPdfOnlyCore() {
             XLSX.writeFile(wb, `Spec_SoSanh_${uniqueColumns.map(c => c.name).join('_')}.xlsx`);
         }
 
-        /* ================= PREVIEW VÀ HIGHLIGHT Ô (ĐÃ CĂN GIỮA) ================= */
+        /* ================= PREVIEW VÀ HIGHLIGHT Ô EXCEL ================= */
         function showExcelPreview(result, model) {
             document.getElementById('activeDocTitle').textContent = `📊 Excel Preview · ${result.sheetName}`;
             document.getElementById('officeControls').style.display = 'flex';
@@ -2038,6 +1896,7 @@ async function searchPdfOnlyCore() {
             }
         }
 
+        /* ================= ĐIỀU HƯỚNG KẾT QUẢ & XEM PDF ================= */
         function syncPreviewNavigator() {
             const count = previewHits.length;
             document.getElementById('previewNavigator').style.display = count ? 'flex' : 'none';
@@ -2050,17 +1909,21 @@ async function searchPdfOnlyCore() {
             activePreviewHitIndex = (index + previewHits.length) % previewHits.length;
             activePreviewHit = previewHits[activePreviewHitIndex];
             syncPreviewNavigator();
-            if (activePreviewHit.type === 'excel') {
-                showOfficeSheetPreview(activePreviewHit);
-                return;
-            }
+
+            if (activePreviewHit.type === 'excel') { showOfficeSheetPreview(activePreviewHit); return; }
+
+            if (currentScale < 1.3) { currentScale = 1.3; document.getElementById('zoomLevelText').innerText = '130%'; }
             await jumpToTargetPdf(activePreviewHit.fileName, activePreviewHit.pageNum);
+
             setTimeout(async () => {
                 if (!currentPdfDoc) return;
                 const page = await currentPdfDoc.getPage(activePreviewHit.pageNum);
-                const viewport = page.getViewport({scale:currentScale, rotation:getPageRotation(activePreviewHit.pageNum)});
+                const viewport = page.getViewport({ scale: currentScale, rotation: getPageRotation(activePreviewHit.pageNum) });
                 await drawHighlightsOnPage(page, viewport, activePreviewHit.pageNum);
-            }, 320);
+                
+                const hl = document.querySelector(`#hl-layer-${activePreviewHit.pageNum} .pdf-highlight-current`);
+                if (hl) hl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+            }, 300);
         }
 
         function navigatePreviewHit(direction, first = false) {
@@ -2107,6 +1970,7 @@ async function searchPdfOnlyCore() {
             el.textContent = shortPath ? `📂 ${shortPath}` : '';
             el.title = path;
         }
+
         async function jumpToTargetPdf(fileName, targetPage) {
             const file = filteredPdfFiles.find(f => f.name === fileName) || allMasterFiles.find(f => f.name === fileName); 
             if (!file) return;
@@ -2122,7 +1986,7 @@ async function searchPdfOnlyCore() {
                 }).promise;
                 parsedPdfDocCache[cacheKey] = currentPdfDoc;
                 
-                globalRotation = 0; singlePageRotations = {}; pendingZoomAnchor = null;
+                globalRotation = 0; singlePageRotations = {};
                 const container = document.getElementById('pdfScrollContainer'); container.innerHTML = '';
                 const pjInput = document.getElementById('pageJumpInput'); if (pjInput) { pjInput.value = ''; pjInput.max = currentPdfDoc.numPages; pjInput.placeholder = '1-' + currentPdfDoc.numPages; }
                 const defaultViewport = (await currentPdfDoc.getPage(1)).getViewport({ scale: currentScale, rotation: 0 });
@@ -2171,31 +2035,25 @@ async function searchPdfOnlyCore() {
                 const context = canvas.getContext('2d');
                 const task = page.render({ canvasContext: context, viewport: viewport });
                 renderTasks[pageNum] = task; await task.promise;
-                canvas.dataset.rendered = "true"; canvas.style.transform = ''; const zg = document.getElementById('zoom-ghost-' + pageNum); if (zg) zg.remove(); drawHighlightsOnPage(page, viewport, pageNum);
-                if (pendingZoomAnchor && pendingZoomAnchor.pageNum === pageNum) {
-                    const pc = document.getElementById('pdfScrollContainer');
-                    const pr = wrapper.getBoundingClientRect();
-                    const ax = pr.left + pendingZoomAnchor.fx * pr.width;
-                    const ay = pr.top + pendingZoomAnchor.fy * pr.height;
-                    pc.scrollLeft += ax - pendingZoomAnchor.mx;
-                    pc.scrollTop += ay - pendingZoomAnchor.my;
-                    pendingZoomAnchor = null;
-                }
-            } catch (err) {
-                if (err.name !== 'RenderingCancelledException') console.error(err);
-            } finally { delete renderTasks[pageNum]; }
+                canvas.dataset.rendered = "true"; 
+                await drawHighlightsOnPage(page, viewport, pageNum);
+            } catch (err) { } finally { delete renderTasks[pageNum]; }
         }
 
+        /* ================= VẼ HIGHLIGHT: GIỮ NGUYÊN BẢN 7:31PM + CHẶN SỐ ĐƠN LẺ ================= */
         async function drawHighlightsOnPage(page, viewport, pageNum) {
             const hlLayer = document.getElementById(`hl-layer-${pageNum}`); 
             if (!hlLayer || activeHighlightTerms.length === 0) return;
             hlLayer.innerHTML = ''; 
             const textContent = await page.getTextContent();
             const occurrenceCounters = new Map(activeHighlightTerms.map(term => [term, 0]));
+            
             for (let item of textContent.items) {
                 if (!item.str || item.str.trim() === '') continue;
                 for (let term of activeHighlightTerms) {
-                    if(!term) continue;
+                    // CHẶN BỎ CÁC TỪ RÁC VÀ SỐ ĐƠN LẺ NHƯ "10"
+                    if(!term || term.trim().length < 2 || /^\d+$/.test(term.trim())) continue;
+                    
                     let mIdx = -1; let sIdx = 0;
                     while ((mIdx = item.str.toLowerCase().indexOf(term, sIdx)) > -1) {
                         const occurrenceIndex = occurrenceCounters.get(term) || 0;
@@ -2209,14 +2067,27 @@ async function searchPdfOnlyCore() {
                         const bw = Math.abs(rect[2] - rect[0]);
                         const bh = Math.abs(rect[3] - rect[1]);
                         const isCurrentHit = activePreviewHit && activePreviewHit.pageNum === pageNum && activePreviewHit.term === term && activePreviewHit.occurrenceIndex === occurrenceIndex;
+                        
+                        // KIỂM TRA MODEL ĐANG TÌM KIẾM
+                        const activeModels = getActiveSearchModels();
+                        const isModelTerm = activeModels.some(m => m.toLowerCase() === term.toLowerCase() || m.replace(/[^a-z0-9]/g, '').toLowerCase() === term.toLowerCase());
+
                         if (isCurrentHit) {
+                            // MÂY ĐỎ: Vị trí active
                             b.classList.add('pdf-highlight-current');
-                            // DAM MAY DO TO HON CHU: dep them rat lon quanh chu (theo hinh mau)
                             b.style.left = (bx - 14) + 'px';
                             b.style.top = (by - 10) + 'px';
                             b.style.width = (bw + 28) + 'px';
                             b.style.height = (bh + 20) + 'px';
+                        } else if (isModelTerm) {
+                            // MÂY XANH: Vị trí Model (cần thì xóa // ở đầu b đi là được)
+                           // b.classList.add('pdf-highlight-model');
+                           // b.style.left = (bx - 10) + 'px';
+                           // b.style.top = (by - 6) + 'px';
+                           // b.style.width = (bw + 20) + 'px';
+                           // b.style.height = (bh + 12) + 'px';
                         } else {
+                            // Viền vàng
                             b.style.left = (bx - 2) + 'px'; b.style.top = (by - 2) + 'px';
                             b.style.width = (bw + 4) + 'px'; b.style.height = (bh + 4) + 'px';
                         }
@@ -2248,94 +2119,80 @@ async function searchPdfOnlyCore() {
             const first = document.querySelector('#pdfScrollContainer .pdf-page-wrapper');
             if (first) { setTimeout(() => first.scrollIntoView({ block: 'start' }), 50); }
         }
-        let pendingZoomAnchor = null;
+
+        /* ================= ZOOM NEO TÂM CHUẨN XÁC KHÔNG TRÔI ================= */
+        let zoomRenderTimer = null;
         function zoomPdfAt(delta, mx, my) {
             if (!currentPdfDoc) return;
             const c = document.getElementById('pdfScrollContainer');
             const crect = c.getBoundingClientRect();
-            if (mx === undefined || my === undefined) { mx = crect.left + crect.width / 2; my = crect.top + crect.height / 2; }
-            // Tim trang duoi con tro chuot de neo diem zoom
-            let anchor = null;
+
+            const mouseX = (mx !== undefined) ? mx : (crect.left + crect.width / 2);
+            const mouseY = (my !== undefined) ? my : (crect.top + crect.height / 2);
+
+            // Tìm chính xác trang gần con trỏ chuột nhất để lấy điểm neo
+            let targetPage = null;
+            let minDistance = Infinity;
+
             for (let i = 1; i <= currentPdfDoc.numPages; i++) {
                 const w = document.getElementById('pdf-page-' + i);
                 if (!w) continue;
                 const r = w.getBoundingClientRect();
-                if (mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom) {
-                    anchor = { pageNum: i, fx: (mx - r.left) / r.width, fy: (my - r.top) / r.height, mx: mx, my: my };
+                if (mouseY >= r.top && mouseY <= r.bottom) {
+                    targetPage = { element: w, fx: (mouseX - r.left) / r.width, fy: (mouseY - r.top) / r.height };
                     break;
                 }
+                const dist = Math.min(Math.abs(mouseY - r.top), Math.abs(mouseY - r.bottom));
+                if (dist < minDistance) {
+                    minDistance = dist;
+                    targetPage = { element: w, fx: (mouseX - r.left) / r.width, fy: (mouseY - r.top) / r.height };
+                }
             }
+
             const oldScale = currentScale;
-            pendingZoomAnchor = anchor;
-            currentScale = Math.max(0.4, Math.min(2.5, currentScale + delta));
+            currentScale = Math.max(0.4, Math.min(3.0, currentScale + delta));
+            if (currentScale === oldScale) return;
+
             document.getElementById('zoomLevelText').innerText = Math.round(currentScale * 100) + '%';
-            const ratio = currentScale / oldScale;
-            // BUOC 1: phong/thu kich thuoc wrapper NGAY LAP TUC (khong mat pixel)
+
+            // Co giãn kích thước khung trang
             for (let i = 1; i <= currentPdfDoc.numPages; i++) {
                 const w = document.getElementById('pdf-page-' + i);
                 if (!w) continue;
-                let baseW = w.dataset.bw ? parseFloat(w.dataset.bw) : (parseFloat(w.style.width) / oldScale);
-                let baseH = w.dataset.bh ? parseFloat(w.dataset.bh) : (parseFloat(w.style.height) / oldScale);
-                w.dataset.bw = baseW; w.dataset.bh = baseH;
+                let baseW = parseFloat(w.dataset.bw) || (parseFloat(w.style.width) / oldScale);
+                let baseH = parseFloat(w.dataset.bh) || (parseFloat(w.style.height) / oldScale);
+                w.dataset.bw = baseW;
+                w.dataset.bh = baseH;
                 w.style.width = (baseW * currentScale) + 'px';
                 w.style.height = (baseH * currentScale) + 'px';
+
                 const cv = document.getElementById('canvas-page-' + i);
-                if (cv && cv.dataset.rendered === 'true') ensureZoomGhost(i, ratio, anchor);
+                if (cv) { cv.style.width = (baseW * currentScale) + 'px'; cv.style.height = (baseH * currentScale) + 'px'; }
             }
-            // BUOC 2: bu lai vi tri cuon de diem duoi con tro chuot di dang yen
-            if (anchor) {
-                const wr = document.getElementById('pdf-page-' + anchor.pageNum);
-                if (wr) {
-                    const nr = wr.getBoundingClientRect();
-                    const ax = nr.left + anchor.fx * nr.width;
-                    const ay = nr.top + anchor.fy * nr.height;
-                    c.scrollLeft += ax - anchor.mx;
-                    c.scrollTop += ay - anchor.my;
-                    pendingZoomAnchor = null;
-                }
+
+            // Neo tuyệt đối điểm chuột (không bao giờ bị trượt xuống đáy)
+            if (targetPage) {
+                const nr = targetPage.element.getBoundingClientRect();
+                const newX = nr.left + targetPage.fx * nr.width;
+                const newY = nr.top + targetPage.fy * nr.height;
+                c.scrollLeft += (newX - mouseX);
+                c.scrollTop += (newY - mouseY);
             }
-            // BUOC 3: tri hoan ve lai canvas net that (canvas bong dang giu anh cu)
-            scheduleZoomRender();
-        }
-        let zoomRenderTimer = null;
-        function scheduleZoomRender() {
+
             clearTimeout(zoomRenderTimer);
-            zoomRenderTimer = setTimeout(() => { if (currentPdfDoc) refreshAllPages(); }, 140);
+            zoomRenderTimer = setTimeout(() => { if (currentPdfDoc) refreshAllPages(); }, 150);
         }
-        // Canvas bong: ban sao chua ANH CU cua trang, phong to/ thu nho lien tuc ma khong ro mat
-        function ensureZoomGhost(pageNum, ratio, anchor) {
-            const cv = document.getElementById('canvas-page-' + pageNum);
-            const w = document.getElementById('pdf-page-' + pageNum);
-            if (!cv || !w) return;
-            let g = document.getElementById('zoom-ghost-' + pageNum);
-            if (!g) {
-                g = document.createElement('canvas');
-                g.id = 'zoom-ghost-' + pageNum;
-                g.className = 'zoom-ghost';
-                g.width = cv.width; g.height = cv.height;
-                g.getContext('2d').drawImage(cv, 0, 0);
-                g.dataset.scale = ratio;
-                w.appendChild(g);
-            } else {
-                g.dataset.scale = (parseFloat(g.dataset.scale) || 1) * ratio;
-            }
-            g.style.width = cv.style.width; g.style.height = cv.style.height;
-            if (anchor && anchor.pageNum === pageNum) {
-                g.style.transformOrigin = (anchor.fx * 100) + '% ' + (anchor.fy * 100) + '%';
-            } else {
-                g.style.transformOrigin = 'top center';
-            }
-            g.style.transform = 'scale(' + g.dataset.scale + ')';
-        }
+
         function goToPageFromInput() {
             const input = document.getElementById('pageJumpInput');
             if (!input) return;
-            if (!currentPdfDoc) { alert('Chưa mở tài liệu PDF nào. Hãy tìm kiếm hoặc mở 1 kết quả trước.'); return; }
+            if (!currentPdfDoc) { alert('Chưa mở tài liệu PDF nào.'); return; }
             const n = parseInt(input.value, 10);
             if (!n || n < 1 || n > currentPdfDoc.numPages) { alert('Số trang không hợp lệ (1 - ' + currentPdfDoc.numPages + ').'); return; }
             renderIndividualPage(n);
             scrollToPage(n);
         }
+
         function zoomPdf(delta) {
             if (!currentPdfDoc) return; 
             currentScale = Math.max(0.4, Math.min(2.5, currentScale + delta));
@@ -2377,13 +2234,10 @@ async function searchPdfOnlyCore() {
         function applyOfficeView() {
             const root = document.querySelector('#pdfScrollContainer .office-sheet-wrap');
             if (!root) return;
-            root.style.transformOrigin = 'top center'; // Giữ tâm căn giữa khi zoom
+            root.style.transformOrigin = 'top center';
             root.style.zoom = officeScale;
-            if (officeRotation !== 0) {
-                root.style.transform = `rotate(${officeRotation}deg)`;
-            } else {
-                root.style.transform = '';
-            }
+            if (officeRotation !== 0) root.style.transform = `rotate(${officeRotation}deg)`;
+            else root.style.transform = '';
             document.getElementById('officeZoomLevelText').textContent = `${Math.round(officeScale * 100)}%`;
         }
 
@@ -2446,9 +2300,3 @@ async function searchPdfOnlyCore() {
     </script>
 </body>
 </html>
-
-
-
-
-
-
