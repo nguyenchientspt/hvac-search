@@ -199,7 +199,7 @@
 
             <!-- BƯỚC 1 -->
             <div class="input-group">
-                <label style="color: #ff9800;">📌 Bước 1: NHẬP MODEL (Chung cho cả 2)</label>
+                <label style="color: #ff9800;">📌 Bước 1: NHẬP MODEL </label>
                 <div style="display: flex; gap: 6px;">
                     <div class="autocomplete-wrap" style="flex: 1;">
                         <input id="modelInput" type="text" placeholder="Vd: FTKF35, FXAQ25, FBA100..." autocomplete="off" onkeydown="if(event.key==='Enter'&&!autocompleteEnterHandled){event.preventDefault();addSearchModel();}">
@@ -1335,10 +1335,10 @@ async function searchPdfOnlyCore() {
     const tabPdf = document.getElementById('tabPdf');
     const statusBar = document.getElementById('searchStatusBar');
 
-    if (!selectedModel && !queryPdf) {
-        alert("⚠️ Vui lòng nhập Model ở Bước 1 HOẶC từ khóa PDF ở Bước 2!");
-        return;
-    }
+    if (!selectedModel || !queryPdf) {
+    alert("⚠️ Bạn phải nhập đầy đủ cả Model ở bước 1 và Từ khóa ở Bước 2 mới tìm được!");
+    return;
+}
 
             switchTab('tabPdf');
             document.getElementById('pdfControls').style.display = 'flex';
