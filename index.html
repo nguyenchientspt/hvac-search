@@ -2180,7 +2180,7 @@
             }
 
             const oldScale = currentScale;
-            currentScale = Math.max(0.4, Math.min(4.0, currentScale + delta));
+            currentScale = Math.max(0.4, Math.min(5.0, currentScale + delta));
             if (currentScale === oldScale) return;
 
             document.getElementById('zoomLevelText').innerText = Math.round(currentScale * 100) + '%';
