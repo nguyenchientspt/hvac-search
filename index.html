@@ -2040,58 +2040,86 @@
             } catch (err) { } finally { delete renderTasks[pageNum]; }
         }
 
-        /* ================= VẼ HIGHLIGHT: GIỮ NGUYÊN BẢN 7:31PM + CHẶN SỐ ĐƠN LẺ ================= */
+        /* ================= VẼ HIGHLIGHT: HỖ TRỢ CHỮ DỌC, CHỮ NGANG & TRANG XOAY ================= */
         async function drawHighlightsOnPage(page, viewport, pageNum) {
             const hlLayer = document.getElementById(`hl-layer-${pageNum}`); 
             if (!hlLayer || activeHighlightTerms.length === 0) return;
             hlLayer.innerHTML = ''; 
+
             const textContent = await page.getTextContent();
             const occurrenceCounters = new Map(activeHighlightTerms.map(term => [term, 0]));
-            
+
             for (let item of textContent.items) {
                 if (!item.str || item.str.trim() === '') continue;
+
                 for (let term of activeHighlightTerms) {
-                    // CHẶN BỎ CÁC TỪ RÁC VÀ SỐ ĐƠN LẺ NHƯ "10"
-                    if(!term || term.trim().length < 2 || /^\d+$/.test(term.trim())) continue;
-                    
+                    if (!term || term.trim().length < 2 || /^\d+$/.test(term.trim())) continue;
+
                     let mIdx = -1; let sIdx = 0;
-                    while ((mIdx = item.str.toLowerCase().indexOf(term, sIdx)) > -1) {
+                    const itemLower = item.str.toLowerCase();
+                    const termLower = term.toLowerCase();
+
+                    while ((mIdx = itemLower.indexOf(termLower, sIdx)) > -1) {
                         const occurrenceIndex = occurrenceCounters.get(term) || 0;
                         occurrenceCounters.set(term, occurrenceIndex + 1);
-                        const h = item.height || 10; const w = item.width || (h * item.str.length * 0.5); const charW = w / item.str.length;
-                        const px = item.transform[4] + (mIdx * charW); const py = item.transform[5];
-                        const rect = viewport.convertToViewportRectangle([ px, py, px + (term.length * charW), py + h ]);
-                        const b = document.createElement('div'); b.className = 'pdf-highlight-box';
-                        const bx = Math.min(rect[0], rect[2]);
-                        const by = Math.min(rect[1], rect[3]);
-                        const bw = Math.abs(rect[2] - rect[0]);
-                        const bh = Math.abs(rect[3] - rect[1]);
-                        const isCurrentHit = activePreviewHit && activePreviewHit.pageNum === pageNum && activePreviewHit.term === term && activePreviewHit.occurrenceIndex === occurrenceIndex;
+
+                        // 👉 MA TRẬN CHUẨN PDF.JS: Tự động tính đúng góc xoay của chữ (dọc/ngang/chéo)
+                        const t = pdfjsLib.Util.transform(viewport.transform, item.transform);
                         
-                        // KIỂM TRA MODEL ĐANG TÌM KIẾM
-                        const activeModels = getActiveSearchModels();
-                        const isModelTerm = activeModels.some(m => m.toLowerCase() === term.toLowerCase() || m.replace(/[^a-z0-9]/g, '').toLowerCase() === term.toLowerCase());
+                        // Vector hướng đọc của chữ trên màn hình
+                        const fontW = Math.hypot(t[0], t[1]);
+                        const dx = fontW > 0 ? t[0] / fontW : 1;
+                        const dy = fontW > 0 ? t[1] / fontW : 0;
+
+                        // Chiều dài thực tế của chữ
+                        const strLen = Math.max(1, item.str.length);
+                        const totalPixelW = (item.width || 10) * viewport.scale;
+                        const charLen = totalPixelW / strLen;
+
+                        // Tọa độ đầu và cuối của từ khóa
+                        const distStart = mIdx * charLen;
+                        const termLen = Math.max(6, term.length * charLen);
+
+                        const termX = t[4] + distStart * dx;
+                        const termY = t[5] + distStart * dy;
+                        const endX = termX + termLen * dx;
+                        const endY = termY + termLen * dy;
+
+                        // 4 góc của khung chữ (tính theo cả độ dày của chữ t[2], t[3])
+                        const xs = [termX, endX, termX + t[2], endX + t[2]];
+                        const ys = [termY, endY, termY + t[3], endY + t[3]];
+
+                        const bx = Math.min(...xs);
+                        const by = Math.min(...ys);
+                        const bw = Math.max(...xs) - bx;
+                        const bh = Math.max(...ys) - by;
+
+                        if (bx < -30 || by < -30 || bx > viewport.width + 30 || by > viewport.height + 30) {
+                            sIdx = mIdx + term.length; continue;
+                        }
+
+                        const b = document.createElement('div');
+                        b.className = 'pdf-highlight-box';
+
+                        const isCurrentHit = activePreviewHit && activePreviewHit.pageNum === pageNum && activePreviewHit.term === term && activePreviewHit.occurrenceIndex === occurrenceIndex;
 
                         if (isCurrentHit) {
                             // MÂY ĐỎ: Vị trí active
                             b.classList.add('pdf-highlight-current');
-                            b.style.left = (bx - 14) + 'px';
-                            b.style.top = (by - 10) + 'px';
-                            b.style.width = (bw + 28) + 'px';
-                            b.style.height = (bh + 20) + 'px';
-                        } else if (isModelTerm) {
-                            // MÂY XANH: Vị trí Model (cần thì xóa // ở đầu b đi là được)
-                           // b.classList.add('pdf-highlight-model');
-                           // b.style.left = (bx - 10) + 'px';
-                           // b.style.top = (by - 6) + 'px';
-                           // b.style.width = (bw + 20) + 'px';
-                           // b.style.height = (bh + 12) + 'px';
+                            b.style.left = (bx - 10) + 'px';
+                            b.style.top = (by - 8) + 'px';
+                            b.style.width = (bw + 20) + 'px';
+                            b.style.height = (bh + 16) + 'px';
                         } else {
-                            // Viền vàng
-                            b.style.left = (bx - 2) + 'px'; b.style.top = (by - 2) + 'px';
-                            b.style.width = (bw + 4) + 'px'; b.style.height = (bh + 4) + 'px';
+                            // Viền vàng thông thường
+                            b.style.left = (bx - 2) + 'px';
+                            b.style.top = (by - 2) + 'px';
+                            b.style.width = (bw + 4) + 'px';
+                            b.style.height = (bh + 4) + 'px';
                         }
-                        hlLayer.appendChild(b); sIdx = mIdx + term.length; 
+
+                        hlLayer.appendChild(b);
+                        sIdx = mIdx + term.length;
                     }
                 }
             }
@@ -2150,7 +2178,7 @@
             }
 
             const oldScale = currentScale;
-            currentScale = Math.max(0.4, Math.min(4.0, currentScale + delta));
+            currentScale = Math.max(0.4, Math.min(5.0, currentScale + delta));
             if (currentScale === oldScale) return;
 
             document.getElementById('zoomLevelText').innerText = Math.round(currentScale * 100) + '%';
