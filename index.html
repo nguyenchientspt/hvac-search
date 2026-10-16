@@ -1394,20 +1394,33 @@
             document.getElementById('badgePdf').innerText = `(${displayMatches.length})`;
 
             displayMatches.forEach(item => {
-                // Tạo snippet quanh vị trí của CỤM TỪ KHỚP TỐT NHẤT (thay vì lấy từ ngắn)
                 let pos = item.lowerText.indexOf(item.bestTerm.toLowerCase());
                 if (pos < 0) pos = 0;
                 let startPos = Math.max(0, pos - 80);
                 let snippet = item.fullText.substring(startPos, startPos + 260).replace(/\s+/g, ' ');
                 if (!snippet.trim()) snippet = `Trang ${item.pageNum}: Khớp kết quả tìm kiếm`;
 
-                // Nạp vào previewHits để điều hướng Previous / Next
-                previewHits.push({
-                    fileName: item.file.name,
-                    pageNum: item.pageNum,
-                    term: item.bestTerm.toLowerCase(),
-                    occurrenceIndex: 0
-                });
+                // 🌟 NẠP ĐẦY ĐỦ TẤT CẢ CÁC VỊ TRÍ LẶP TRÊN TRANG NÀY VÀO previewHits
+                const termLower = item.bestTerm.toLowerCase();
+                let from = 0, foundIdx = -1, occ = 0;
+                while ((foundIdx = item.lowerText.indexOf(termLower, from)) !== -1) {
+                    previewHits.push({
+                        fileName: item.file.name,
+                        pageNum: item.pageNum,
+                        term: termLower,
+                        occurrenceIndex: occ
+                    });
+                    occ++;
+                    from = foundIdx + Math.max(1, termLower.length);
+                }
+                if (occ === 0) {
+                    previewHits.push({
+                        fileName: item.file.name,
+                        pageNum: item.pageNum,
+                        term: termLower,
+                        occurrenceIndex: 0
+                    });
+                }
 
                 // Render Card ra giao diện
                 const card = document.createElement('div');
@@ -1420,7 +1433,7 @@
                 card.innerHTML = `
                     <div class="card-header">
                         <span class="card-file">📄 ${item.file.name}</span>
-                        <span class="card-page">${item.isFileNameMatch ? 'Khớp tên file' : `Trang ${item.pageNum}`}</span>
+                        <span class="card-page">${item.isFileNameMatch ? 'Khớp tên file' : `Trang ${item.pageNum}${occ > 1 ? ` (${occ} vị trí)` : ''}`}</span>
                     </div>
                     <div class="card-snippet">${highlightSnippet}</div>
                     <div class="card-actions">
@@ -1941,25 +1954,80 @@
             } catch (e) {}
         }
 
+// 🌟 Hàm tính tọa độ cuộn ô highlight vào chính giữa màn hình (chuẩn xác ở mọi mức Zoom 100% -> 500% và mọi góc xoay)
+        function scrollElementToCenter(element, container) {
+            if (!element || !container) return;
+            const elRect = element.getBoundingClientRect();
+            const cRect = container.getBoundingClientRect();
+            
+            const deltaX = (elRect.left + elRect.width / 2) - (cRect.left + cRect.width / 2);
+            const deltaY = (elRect.top + elRect.height / 2) - (cRect.top + cRect.height / 2);
+
+            container.scrollTo({
+                left: container.scrollLeft + deltaX,
+                top: container.scrollTop + deltaY,
+                behavior: 'smooth'
+            });
+        }
+
         async function goToPreviewHit(index) {
             if (!previewHits.length) return;
             activePreviewHitIndex = (index + previewHits.length) % previewHits.length;
             activePreviewHit = previewHits[activePreviewHitIndex];
             syncPreviewNavigator();
 
-            if (activePreviewHit.type === 'excel') { showOfficeSheetPreview(activePreviewHit); return; }
+            if (activePreviewHit.type === 'excel') { 
+                showOfficeSheetPreview(activePreviewHit); 
+                return; 
+            }
 
             const targetPage = activePreviewHit.pageNum;
-            isJumpingToPage = true;
+            const container = document.getElementById('pdfScrollContainer');
 
-            // Xóa mây đỏ cũ ở tất cả các trang
+            const isSameDoc = currentPdfDoc && document.getElementById('activeDocTitle').innerText === `📄 ${activePreviewHit.fileName}`;
+            const hlLayer = document.getElementById(`hl-layer-${targetPage}`);
+            const canvas = document.getElementById(`canvas-page-${targetPage}`);
+            const isPageRendered = canvas && canvas.dataset.rendered === "true";
+
+            // 👉 TRƯỜNG HỢP 1: ĐANG Ở CÙNG 1 TRANG (Chuyển giữa các từ lặp 1, 2... trên trang)
+            if (isSameDoc && isPageRendered && hlLayer) {
+                // 1. Trả lại viền vàng cho ô cũ
+                hlLayer.querySelectorAll('.pdf-highlight-box.pdf-highlight-current').forEach(el => {
+                    el.classList.remove('pdf-highlight-current');
+                    el.style.left = (parseFloat(el.style.left) + 8) + 'px';
+                    el.style.top = (parseFloat(el.style.top) + 6) + 'px';
+                    el.style.width = (parseFloat(el.style.width) - 16) + 'px';
+                    el.style.height = (parseFloat(el.style.height) - 12) + 'px';
+                });
+
+                // 2. Tìm đúng ô của từ lặp được chọn
+                let targetBox = hlLayer.querySelector(`.pdf-highlight-box[data-term="${activePreviewHit.term}"][data-occurrence="${activePreviewHit.occurrenceIndex}"]`);
+                if (!targetBox) {
+                    const allBoxes = hlLayer.querySelectorAll(`.pdf-highlight-box[data-term="${activePreviewHit.term}"]`);
+                    if (allBoxes.length > 0) targetBox = allBoxes[activePreviewHit.occurrenceIndex % allBoxes.length];
+                }
+
+                if (targetBox) {
+                    targetBox.classList.add('pdf-highlight-current');
+                    targetBox.style.left = (parseFloat(targetBox.style.left) - 8) + 'px';
+                    targetBox.style.top = (parseFloat(targetBox.style.top) - 6) + 'px';
+                    targetBox.style.width = (parseFloat(targetBox.style.width) + 16) + 'px';
+                    targetBox.style.height = (parseFloat(targetBox.style.height) + 12) + 'px';
+
+                    // Cuộn đưa từ này vào chính giữa mắt người nhìn
+                    scrollElementToCenter(targetBox, container);
+                }
+                return;
+            }
+
+            // 👉 TRƯỜNG HỢP 2: NHẢY SANG TRANG KHÁC HOẶC TÀI LIỆU KHÁC
+            isJumpingToPage = true;
             document.querySelectorAll('.pdf-highlight-current').forEach(el => el.classList.remove('pdf-highlight-current'));
 
             await jumpToTargetPdf(activePreviewHit.fileName, targetPage);
 
-            const canvas = document.getElementById(`canvas-page-${targetPage}`);
-            if (canvas && canvas.dataset.rendered === "true") {
-                // Nếu trang đã vẽ xong canvas rồi thì chỉ cần vẽ lại lớp highlight để di dời ngay mây đỏ
+            const curCanvas = document.getElementById(`canvas-page-${targetPage}`);
+            if (curCanvas && curCanvas.dataset.rendered === "true") {
                 await refreshPageHighlights(targetPage);
             } else {
                 for (let key in renderTasks) { try { renderTasks[key].cancel(); } catch(e){} }
@@ -1967,10 +2035,13 @@
                 await renderIndividualPage(targetPage);
             }
 
-            // Cuộn mây đỏ vào giữa màn hình
-            const hl = document.querySelector(`#hl-layer-${targetPage} .pdf-highlight-current`);
-            if (hl) {
-                hl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+            const newHlLayer = document.getElementById(`hl-layer-${targetPage}`);
+            if (newHlLayer) {
+                let targetBox = newHlLayer.querySelector(`.pdf-highlight-box[data-term="${activePreviewHit.term}"][data-occurrence="${activePreviewHit.occurrenceIndex}"]`);
+                if (!targetBox) targetBox = newHlLayer.querySelector('.pdf-highlight-current') || newHlLayer.querySelector('.pdf-highlight-box');
+                if (targetBox) {
+                    scrollElementToCenter(targetBox, container);
+                }
             }
 
             setTimeout(() => {
@@ -2223,7 +2294,18 @@
                         const b = document.createElement('div');
                         b.className = 'pdf-highlight-box';
 
-                        const isCurrentHit = activePreviewHit && activePreviewHit.pageNum === pageNum && activePreviewHit.term === term && activePreviewHit.occurrenceIndex === occurrenceIndex;
+                        // 🌟 Gắn định danh cho từng vị trí xuất hiện (lặp 1, lặp 2...)
+                        b.dataset.term = term;
+                        b.dataset.occurrence = occurrenceIndex;
+                        b.dataset.bx = bx;
+                        b.dataset.by = by;
+                        b.dataset.bw = bw;
+                        b.dataset.bh = bh;
+
+                        const isCurrentHit = activePreviewHit && 
+                                             activePreviewHit.pageNum === pageNum && 
+                                             activePreviewHit.term === term && 
+                                             activePreviewHit.occurrenceIndex === occurrenceIndex;
 
                         if (isCurrentHit) {
                             b.classList.add('pdf-highlight-current');
