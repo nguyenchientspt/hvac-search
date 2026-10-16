@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
     <title>HVAC Smart Search - Tách Biệt PDF & Excel</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     
@@ -195,14 +195,22 @@
     <div class="workspace">
         <!-- SIDEBAR -->
         <div class="sidebar" id="panelSidebar">
-            <span style="font-weight: bold; color: #fff; font-size: 13px;">🔎 Công Cụ Tra Cứu</span>
+            <span style="font-weight: bold; color: #fff; font-size: 13px;">🔎 4. Công Cụ Tra Cứu</span>
 
             <!-- BƯỚC 1 -->
             <div class="input-group">
-                <label style="color: #ff9800;">📌 Bước 1: NHẬP MODEL </label>
-                <div class="autocomplete-wrap">
-                    <input id="modelInput" type="text" placeholder="Vd: FTKF35, FXAQ25, FBA100..." autocomplete="off">
-                    <div id="modelDatalist" class="autocomplete-suggestions"></div>
+                <label style="color: #ff9800;">📌 Bước 1: NHẬP MODEL (Chung cho cả 2)</label>
+                <div style="display: flex; gap: 6px;">
+                    <div class="autocomplete-wrap" style="flex: 1;">
+                        <input id="modelInput" type="text" placeholder="Vd: FTKF35, FXAQ25, FBA100..." autocomplete="off" onkeydown="if(event.key==='Enter'&&!autocompleteEnterHandled){event.preventDefault();addSearchModel();}">
+                        <div id="modelDatalist" class="autocomplete-suggestions"></div>
+                    </div>
+                    <button type="button" class="btn-card" style="background: var(--accent); color: #fff; padding: 0 12px; font-weight: bold; font-size: 12px; white-space: nowrap;" onclick="addSearchModel()">Thêm +</button>
+                </div>
+
+                <!-- DANH SÁCH MODEL ĐÃ THÊM -->
+                <div id="searchModelListBox" style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-height: 130px; overflow-y: auto; background: #1e1e1e; border: 1px solid var(--border); border-radius: 4px; padding: 4px;">
+                    <div style="color: #666; font-size: 11px; text-align: center; padding: 6px;">Chưa có model (Gõ rồi bấm Thêm +)</div>
                 </div>
             </div>
 
@@ -246,7 +254,7 @@
                 
                 <div class="param-list-container" id="listParamsHtml"></div>
             </div>
-            <button class="btn-search-excel" onclick="extractExcelOnly()">📊 Tạo Bảng Spec Excel</button>
+            <button class="btn-search-excel" onclick="extractExcelOnly()">📊 Trích Xuất Bảng Spec Excel</button>
 
             <div class="search-status-bar" id="searchStatusBar"></div>
         </div>
@@ -381,7 +389,8 @@
                 }
             }
             saveDataToLocalStorage();
-            const selectedModel = document.getElementById('modelInput').value.trim();
+            const activeModels = getActiveSearchModels();
+		const selectedModel = activeModels.join(', ');
             if (selectedModel && document.getElementById('btnTabExcel').classList.contains('active')) {
                  extractExcelOnly();
             }
@@ -1250,6 +1259,65 @@ setCachedPdfText(cacheKey, pageTexts);
 return pageTexts;
         }
 
+/* ================= QUẢN LÝ DANH SÁCH MODEL TÌM KIẾM ================= */
+        let searchModelList = [];
+
+        function renderSearchModelList() {
+            const box = document.getElementById('searchModelListBox');
+            if (!box) return;
+            if (searchModelList.length === 0) {
+                box.innerHTML = `<div style="color: #666; font-size: 11px; text-align: center; padding: 6px;">Chưa có model (Gõ rồi bấm Thêm +)</div>`;
+                return;
+            }
+            let html = '';
+            searchModelList.forEach((model, idx) => {
+                html += `
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 4px 8px; border-radius: 3px; border: 1px solid #3c3c3c;">
+                    <span style="color: #5bc0be; font-weight: bold; font-size: 12px;">${model}</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button type="button" onclick="editSearchModel(${idx})" style="background: #444; color: #fff; border: 1px solid #555; padding: 2px 7px; border-radius: 3px; cursor: pointer; font-size: 11px;">Edit</button>
+                        <button type="button" onclick="removeSearchModel(${idx})" style="background: #c53030; color: #fff; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 12px;" title="Xóa">-</button>
+                    </div>
+                </div>`;
+            });
+            box.innerHTML = html;
+        }
+
+        function addSearchModel() {
+            const input = document.getElementById('modelInput');
+            const val = input.value.trim();
+            if (!val) return;
+            
+            // Hỗ trợ gõ 1 model hoặc paste chuỗi nhiều model cách nhau bằng dấu phẩy
+            const parts = val.split(/[,;|\n]+/).map(m => m.trim().toUpperCase()).filter(Boolean);
+            parts.forEach(p => {
+                if (!searchModelList.includes(p)) searchModelList.push(p);
+            });
+            input.value = '';
+            renderSearchModelList();
+        }
+
+        function removeSearchModel(idx) {
+            searchModelList.splice(idx, 1);
+            renderSearchModelList();
+        }
+
+        function editSearchModel(idx) {
+            const current = searchModelList[idx];
+            const newVal = prompt("Sửa tên Model:", current);
+            if (newVal !== null && newVal.trim() !== "") {
+                searchModelList[idx] = newVal.trim().toUpperCase();
+                renderSearchModelList();
+            }
+        }
+
+        // Hàm gom toàn bộ model cần tìm (từ danh sách, nếu danh sách trống thì lấy trực tiếp ô input)
+        function getActiveSearchModels() {
+            if (searchModelList.length > 0) return [...searchModelList];
+            const raw = document.getElementById('modelInput').value.trim();
+            return raw ? raw.split(/[,;|\n]+/).map(m => m.trim().toUpperCase()).filter(Boolean) : [];
+        }
+
         /* ================= TÌM KIẾM TRONG PDF (SIÊU TỐC & KHÔNG BỎ SÓT MODEL) ================= */
 async function searchPdfOnly() {
     try { await searchPdfOnlyCore(); }
@@ -1736,26 +1804,21 @@ if (cancelScanRequested) break; // <-- THÊM DÒNG NÀY (bấm dừng là ngắt
             return specData;
         }
 
+        /* ================= 1. PREVIEW TRÊN MÀN HÌNH (DÀN NGANG) ================= */
         function extractExcelOnly() {
-            const selectedModel = document.getElementById('modelInput').value.trim();
+            const modelList = getActiveSearchModels();
             const tabExcel = document.getElementById('tabExcel');
             const statusBar = document.getElementById('searchStatusBar');
 
-            if (!selectedModel) {
-                alert("⚠️ Vui lòng nhập Model ở Bước 1 để trích xuất Spec từ Excel!");
+            if (modelList.length === 0) {
+                alert("⚠️ Vui lòng nhập hoặc bấm [Thêm +] ít nhất 1 Model ở Bước 1!");
                 return;
             }
 
             const activeCheckedCount = userSpecParams.filter(p => p.checked).length;
             if (activeCheckedCount === 0) {
                 switchTab('tabExcel');
-                tabExcel.innerHTML = `
-                    <div style="text-align:center; margin-top:30px; padding:20px; background:#2d2d30; border-radius:6px; border:1px solid #ff9800;">
-                        <p style="color:#ff9800; font-weight:bold; font-size:14px;">⚠️ Bạn chưa chọn thông số nào cần hiển thị!</p>
-                        <p style="color:#ccc; font-size:12px; margin-top:8px;">Hãy tích chọn các thông số ở Bước 3 (hoặc bấm <b style="color:var(--accent); cursor:pointer;" onclick="toggleAllParams(true); extractExcelOnly();">[Tất cả]</b>) rồi bấm trích xuất lại.</p>
-                    </div>`;
-                statusBar.style.display = 'block';
-                statusBar.innerHTML = '⚠️ Chưa chọn thông số cần hiển thị.';
+                tabExcel.innerHTML = `<div style="text-align:center; margin-top:30px; padding:20px; color:#ff9800;">⚠️ Chưa chọn thông số cần hiển thị!</div>`;
                 return;
             }
 
@@ -1763,40 +1826,166 @@ if (cancelScanRequested) break; // <-- THÊM DÒNG NÀY (bấm dừng là ngắt
             tabExcel.innerHTML = '';
             previewHits = []; activePreviewHitIndex = -1; activePreviewHit = null; syncPreviewNavigator();
             statusBar.style.display = 'block';
-            statusBar.innerHTML = '⚡ Đang đọc thông số từ file Excel...';
+            statusBar.innerHTML = `⚡ Đang quét thông số cho ${modelList.length} Model...`;
 
             if (excelDataSheets.length === 0) {
-                tabExcel.innerHTML = '<p style="color:#f88; text-align:center; margin-top:20px;">Bạn chưa nạp file Excel ở nút số 2 trên thanh công cụ.</p>';
-                statusBar.innerHTML = '❌ Chưa có file Excel.';
+                tabExcel.innerHTML = '<p style="color:#f88; text-align:center; margin-top:20px;">Chưa nạp file Excel.</p>';
                 return;
             }
 
-            const excelResults = extractExcelSpec(selectedModel);
-
-            if (excelResults && excelResults.length > 0) {
-                window.latestExcelResults = excelResults;
-                excelResults.forEach((res, index) => {
-                    const eCard = document.createElement('div'); eCard.className = 'excel-card';
-                    let tableRows = '';
-                    res.params.forEach(p => { 
-                        tableRows += `<tr><th>${cleanSpecLabel(p.label)}</th><td>${cleanSpecValue(p.value)}</td></tr>`; 
-                    });
-                    eCard.innerHTML = `
-                        <div class="excel-header">📊 BẢNG THÔNG SỐ (SPEC)</div>
-                        <div style="font-size:11px; color:#aaa; margin-bottom: 8px;">Model: <b>${selectedModel.toUpperCase()}</b> (Sheet: ${res.sheetName})</div>
-                        <table class="excel-table">${tableRows}</table>
-                        <div class="card-actions" style="margin-top: 10px;">
-                            <button class="btn-card btn-card-view" onclick="showExcelPreview(window.latestExcelResults[${index}], '${selectedModel}')">👁️ Xem bản gốc</button>
-                        </div>`;
-                    tabExcel.appendChild(eCard);
-                    if (index === 0) showExcelPreview(res, selectedModel);
-                });
-                document.getElementById('badgeExcel').innerText = '✅ Có Data';
-                statusBar.innerHTML = `✅ Đã trích xuất thành công bảng Spec cho Model: ${selectedModel.toUpperCase()}`;
-            } else {
-                tabExcel.innerHTML = `<p style="color:#f88; text-align:center; margin-top:20px;">❌ Không tìm thấy thông số phù hợp cho Model "${selectedModel}". Hãy kiểm tra lại các mục đã tích chọn hoặc tên Model.</p>`;
-                statusBar.innerHTML = `❌ Không tìm thấy Spec phù hợp trong Excel.`;
+            let allFoundCards = [];
+            for (const currentModel of modelList) {
+                const results = extractExcelSpec(currentModel);
+                if (results && results.length > 0) {
+                    results.forEach(res => allFoundCards.push({ modelName: currentModel, res: res }));
+                }
             }
+
+            if (allFoundCards.length > 0) {
+                const uniqueModels = [];
+                allFoundCards.forEach(item => {
+                    const mName = item.modelName.toUpperCase();
+                    if (!uniqueModels.some(u => u.name === mName)) {
+                        uniqueModels.push({ name: mName, sheetName: item.res.sheetName, params: item.res.params, rawRes: item.res });
+                    }
+                });
+
+                window.latestExcelResults = uniqueModels.map(item => ({ ...item.rawRes, matchedModel: item.name, params: item.params, sheetName: item.sheetName }));
+
+                const allLabels = [];
+                uniqueModels.forEach(col => {
+                    col.params.forEach(p => {
+                        const lbl = cleanSpecLabel(p.label);
+                        if (!allLabels.includes(lbl)) allLabels.push(lbl);
+                    });
+                });
+
+                let headerThs = `<th style="min-width:170px; background:#263c2f; color:#81c784; position:sticky; left:0; z-index:2;">THÔNG SỐ KỸ THUẬT</th>`;
+                uniqueModels.forEach(m => {
+                    headerThs += `<th style="text-align:center; color:#ffe066; font-size:13px; min-width:130px; background:#1e3d2a;">${m.name}</th>`;
+                });
+
+                let bodyRows = '';
+                allLabels.forEach((lbl, rIdx) => {
+                    const rowBg = (rIdx % 2 === 0) ? '#1a261e' : '#223328';
+                    bodyRows += `<tr><td style="font-weight:600; color:#ddd; background:${rowBg}; position:sticky; left:0; z-index:1;">${lbl}</td>`;
+                    uniqueModels.forEach(m => {
+                        const pObj = m.params.find(p => cleanSpecLabel(p.label) === lbl);
+                        const val = pObj ? cleanSpecValue(pObj.value) : '-';
+                        bodyRows += `<td style="text-align:center; font-family:Consolas, monospace; font-weight:bold; color:#fff; background:${rowBg};">${val}</td>`;
+                    });
+                    bodyRows += `</tr>`;
+                });
+
+                let actionTds = `<td style="background:#202b23; font-weight:bold; color:#aaa; position:sticky; left:0;">Xem bản gốc</td>`;
+                uniqueModels.forEach((m, idx) => {
+                    actionTds += `<td style="text-align:center; background:#202b23;">
+                        <button class="btn-card btn-card-view" style="font-size:11px; padding:3px 8px;" onclick="showExcelPreview(window.latestExcelResults[${idx}], '${m.name}')">👁️ Xem</button>
+                    </td>`;
+                });
+                bodyRows += `<tr style="border-top:2px solid #217346;">${actionTds}</tr>`;
+
+                const containerCard = document.createElement('div');
+                containerCard.className = 'excel-card';
+                containerCard.style.padding = '12px';
+                containerCard.innerHTML = `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                        <span style="color:#4CAF50; font-weight:bold; font-size:13px;">📊 BẢNG SO SÁNH SPEC (${uniqueModels.length} MODEL)</span>
+                        <button class="btn-card" style="background:#217346; color:#fff; font-weight:bold; padding:6px 14px; cursor:pointer;" onclick="exportSpecCardToExcel()">📥 Xuất Excel So Sánh</button>
+                    </div>
+                    <div style="overflow-x:auto; max-width:100%; border:1px solid #334d3d; border-radius:4px;">
+                        <table class="excel-table" style="width:max-content; min-width:100%; margin:0;">
+                            <thead><tr>${headerThs}</tr></thead>
+                            <tbody>${bodyRows}</tbody>
+                        </table>
+                    </div>`;
+
+                tabExcel.appendChild(containerCard);
+                showExcelPreview(uniqueModels[0].rawRes, uniqueModels[0].name);
+                document.getElementById('badgeExcel').innerText = `✅ Có (${uniqueModels.length})`;
+                statusBar.innerHTML = `✅ Đã tạo bảng so sánh cho ${uniqueModels.length} Model.`;
+            } else {
+                tabExcel.innerHTML = `<p style="color:#f88; text-align:center; margin-top:20px;">❌ Không tìm thấy thông số cho các Model: "${modelList.join(', ')}".</p>`;
+            }
+        }
+
+        /* ================= 2. XUẤT RA FILE EXCEL (DÀN NGANG) ================= */
+        function exportSpecCardToExcel() {
+            const allResults = window.latestExcelResults || [];
+            if (allResults.length === 0) return;
+
+            const uniqueColumns = [];
+            allResults.forEach(item => {
+                const mName = item.matchedModel.toUpperCase();
+                if (!uniqueColumns.some(u => u.name === mName)) {
+                    uniqueColumns.push({ name: mName, sheetName: item.sheetName, params: item.params });
+                }
+            });
+
+            const allLabels = [];
+            uniqueColumns.forEach(col => {
+                col.params.forEach(p => {
+                    const lbl = cleanSpecLabel(p.label);
+                    if (!allLabels.includes(lbl)) allLabels.push(lbl);
+                });
+            });
+
+            const wb = XLSX.utils.book_new();
+            const ws = {};
+            const thinBorder = {
+                top: { style: "thin", color: { rgb: "334D3D" } }, bottom: { style: "thin", color: { rgb: "334D3D" } },
+                left: { style: "thin", color: { rgb: "334D3D" } }, right: { style: "thin", color: { rgb: "334D3D" } }
+            };
+
+            const getColLetter = n => {
+                let s = "";
+                while (n >= 0) { s = String.fromCharCode((n % 26) + 65) + s; n = Math.floor(n / 26) - 1; }
+                return s;
+            };
+
+            const totalCols = uniqueColumns.length;
+            const lastColLetter = getColLetter(totalCols);
+
+            ws["A1"] = { v: "BẢNG SO SÁNH THÔNG SỐ KỸ THUẬT (SPEC)", t: "s", s: { font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "107C41" } }, alignment: { horizontal: "center", vertical: "center" } } };
+            ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: totalCols } }];
+            ws["A2"] = { v: "Nguồn dữ liệu: " + uniqueColumns.map(c => c.sheetName).filter((v, i, a) => a.indexOf(v) === i).join(" | "), t: "s", s: { font: { italic: true, sz: 9, color: { rgb: "666666" } } } };
+
+            ws["A4"] = { v: "THÔNG SỐ KỸ THUẬT", t: "s", s: { font: { bold: true, sz: 11, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "217346" } }, border: thinBorder, alignment: { vertical: "center" } } };
+            uniqueColumns.forEach((col, idx) => {
+                const colLetter = getColLetter(idx + 1);
+                ws[`${colLetter}4`] = {
+                    v: col.name,
+                    t: "s",
+                    s: { font: { bold: true, sz: 12, color: { rgb: "FFE066" } }, fill: { fgColor: { rgb: "1E4620" } }, border: thinBorder, alignment: { horizontal: "center", vertical: "center" } }
+                };
+            });
+
+            let row = 5;
+            allLabels.forEach((lbl, rIdx) => {
+                const bg = (rIdx % 2 === 0) ? "F9FBF9" : "FFFFFF";
+                ws[`A${row}`] = {
+                    v: lbl, t: "s",
+                    s: { font: { sz: 10, bold: true, color: { rgb: "263C2F" } }, fill: { fgColor: { rgb: bg } }, border: thinBorder, alignment: { vertical: "center" } }
+                };
+
+                uniqueColumns.forEach((col, cIdx) => {
+                    const colLetter = getColLetter(cIdx + 1);
+                    const paramObj = col.params.find(p => cleanSpecLabel(p.label) === lbl);
+                    const val = paramObj ? cleanSpecValue(paramObj.value) : "-";
+                    ws[`${colLetter}${row}`] = {
+                        v: val, t: "s",
+                        s: { font: { sz: 10, bold: true, color: { rgb: "002060" } }, fill: { fgColor: { rgb: bg } }, border: thinBorder, alignment: { horizontal: "center", vertical: "center" } }
+                    };
+                });
+                row++;
+            });
+
+            ws["!ref"] = `A1:${lastColLetter}${row - 1}`;
+            ws["!cols"] = [{ wch: 38 }, ...uniqueColumns.map(() => ({ wch: 24 }))];
+            ws["!rows"] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 6 }, { hpt: 26 }];
+
+            XLSX.utils.book_append_sheet(wb, ws, "Bang_Spec");
+            XLSX.writeFile(wb, `Spec_SoSanh_${uniqueColumns.map(c => c.name).join('_')}.xlsx`);
         }
 
         /* ================= PREVIEW VÀ HIGHLIGHT Ô (ĐÃ CĂN GIỮA) ================= */
