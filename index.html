@@ -21,7 +21,7 @@
         body { background: var(--bg-dark); color: var(--text); font-size: 13px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
         /* Top Navbar */
-        .top-navbar { background-color: var(--panel-bg); border-bottom: 1px solid var(--border); padding: 8px 15px; display: flex; align-items: center; justify-content: space-between; z-index: 5; }
+        .top-navbar { background-color: var(--panel-bg); border-bcurrentScale = Math.max(0.4, Math.min(5.0, currentScaottom: 1px solid var(--border); padding: 8px 15px; display: flex; align-items: center; justify-content: space-between; z-index: 5; }
         .btn-upload { background: var(--green); color: #fff; border: none; padding: 7px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; transition: 0.2s;}
         .btn-upload:hover { filter: brightness(1.2); }
         .btn-upload-excel { background: var(--excel-green); }
@@ -2148,7 +2148,7 @@
             if (first) { setTimeout(() => first.scrollIntoView({ block: 'start' }), 50); }
         }
 
-        /* ================= ZOOM NEO TÂM CHUẨN XÁC KHÔNG TRÔI ================= */
+        /* ================= ZOOM TỰ ĐỘNG THÍCH ỨNG THEO MỌI GÓC XOAY TRANG ================= */
         let zoomRenderTimer = null;
         function zoomPdfAt(delta, mx, my) {
             if (!currentPdfDoc) return;
@@ -2158,7 +2158,7 @@
             const mouseX = (mx !== undefined) ? mx : (crect.left + crect.width / 2);
             const mouseY = (my !== undefined) ? my : (crect.top + crect.height / 2);
 
-            // Tìm chính xác trang gần con trỏ chuột nhất để lấy điểm neo
+            // 1. Xác định trang PDF gần con trỏ chuột nhất và lấy % vị trí chuột trên trang
             let targetPage = null;
             let minDistance = Infinity;
 
@@ -2166,6 +2166,8 @@
                 const w = document.getElementById('pdf-page-' + i);
                 if (!w) continue;
                 const r = w.getBoundingClientRect();
+                
+                // Nếu chuột nằm trong phạm vi dọc của trang
                 if (mouseY >= r.top && mouseY <= r.bottom) {
                     targetPage = { element: w, fx: (mouseX - r.left) / r.width, fy: (mouseY - r.top) / r.height };
                     break;
@@ -2178,37 +2180,45 @@
             }
 
             const oldScale = currentScale;
-            currentScale = Math.max(0.4, Math.min(5.0, currentScale + delta));
+            currentScale = Math.max(0.4, Math.min(4.0, currentScale + delta));
             if (currentScale === oldScale) return;
 
             document.getElementById('zoomLevelText').innerText = Math.round(currentScale * 100) + '%';
+            const ratio = currentScale / oldScale;
 
-            // Co giãn kích thước khung trang
+            // 2. Co giãn trực tiếp theo kích thước thực tế hiện tại (không dùng cache cũ gây méo trang khi xoay)
             for (let i = 1; i <= currentPdfDoc.numPages; i++) {
                 const w = document.getElementById('pdf-page-' + i);
                 if (!w) continue;
-                let baseW = parseFloat(w.dataset.bw) || (parseFloat(w.style.width) / oldScale);
-                let baseH = parseFloat(w.dataset.bh) || (parseFloat(w.style.height) / oldScale);
-                w.dataset.bw = baseW;
-                w.dataset.bh = baseH;
-                w.style.width = (baseW * currentScale) + 'px';
-                w.style.height = (baseH * currentScale) + 'px';
+                
+                const curW = parseFloat(w.style.width) || w.offsetWidth;
+                const curH = parseFloat(w.style.height) || w.offsetHeight;
+                const newW = curW * ratio;
+                const newH = curH * ratio;
+
+                w.style.width = newW + 'px';
+                w.style.height = newH + 'px';
 
                 const cv = document.getElementById('canvas-page-' + i);
-                if (cv) { cv.style.width = (baseW * currentScale) + 'px'; cv.style.height = (baseH * currentScale) + 'px'; }
+                if (cv) { 
+                    cv.style.width = newW + 'px'; 
+                    cv.style.height = newH + 'px'; 
+                }
             }
 
-            // Neo tuyệt đối điểm chuột (không bao giờ bị trượt xuống đáy)
+            // 3. Giữ điểm dưới con trỏ chuột đứng yên tuyệt đối
             if (targetPage) {
                 const nr = targetPage.element.getBoundingClientRect();
-                const newX = nr.left + targetPage.fx * nr.width;
-                const newY = nr.top + targetPage.fy * nr.height;
-                c.scrollLeft += (newX - mouseX);
-                c.scrollTop += (newY - mouseY);
+                const newPointX = nr.left + targetPage.fx * nr.width;
+                const newPointY = nr.top + targetPage.fy * nr.height;
+                c.scrollLeft += (newPointX - mouseX);
+                c.scrollTop += (newPointY - mouseY);
             }
 
             clearTimeout(zoomRenderTimer);
-            zoomRenderTimer = setTimeout(() => { if (currentPdfDoc) refreshAllPages(); }, 150);
+            zoomRenderTimer = setTimeout(() => { 
+                if (currentPdfDoc) refreshAllPages(); 
+            }, 150);
         }
 
         function goToPageFromInput() {
