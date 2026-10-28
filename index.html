@@ -175,7 +175,7 @@
         .pdf-highlight-box { position: absolute; background-color: rgba(255, 224, 102, 0.28); border: 1px solid rgba(210, 160, 0, 0.72); border-radius: 2px; }
         
         /* Mây Đỏ: Điểm đang Next/Prev trúng tới */
-        .pdf-highlight-current { background-color: rgba(229, 57, 53, 0.12) !important; border: 2px solid rgba(229, 57, 53, 0.65) !important; outline: none; z-index: 8; border-radius: 50px !important; box-shadow: 0 0 0 4px rgba(229, 57, 53, 0.18), 0 0 16px 4px rgba(229, 57, 53, 0.45); }
+        .pdf-highlight-current { background-color: rgba(229, 57, 53, 0.12) !important; border: 4px solid rgba(229, 57, 53, 0.9) !important; outline: none; z-index: 8; border-radius: 50px !important; box-shadow: 0 0 0 6px rgba(229, 57, 53, 0.22), 0 0 24px 8px rgba(229, 57, 53, 0.5); }
 
         .preview-nav { display: none; align-items: center; gap: 5px; }
 
@@ -2528,6 +2528,15 @@
 
                     if (targetBox) {
                         boxes.forEach(b => b.classList.remove('pdf-highlight-current'));
+                        if (!targetBox.dataset.enlarged) {
+                            // Ô được chọn dự phòng (chưa to) -> phóng to vùng khoanh cho dễ thấy
+                            const l = parseFloat(targetBox.style.left) || 0, t = parseFloat(targetBox.style.top) || 0;
+                            const w = parseFloat(targetBox.style.width) || 0, h = parseFloat(targetBox.style.height) || 0;
+                            const padX = Math.max(24, h * 1.6), padY = Math.max(16, h * 0.9);
+                            targetBox.style.left = (l - padX) + 'px'; targetBox.style.top = (t - padY) + 'px';
+                            targetBox.style.width = (w + padX * 2) + 'px'; targetBox.style.height = (h + padY * 2) + 'px';
+                            targetBox.dataset.enlarged = '1';
+                        }
                         targetBox.classList.add('pdf-highlight-current');
                         scrollElementToCenter(targetBox, container);
                     }
@@ -2914,17 +2923,21 @@
                         b.dataset.occurrence = occurrenceIndex;
 
                         if (isCurrentHit) {
+                            // Khoanh đỏ vùng hiện tại: lớn hơn nhiều, tỉ lệ theo cỡ chữ
+                            const padX = Math.max(34, bh * 2.2);
+                            const padY = Math.max(24, bh * 1.4);
+                            b.dataset.enlarged = '1';
                             b.classList.add('pdf-highlight-current');
-                            b.style.left = (minX - 10) + 'px';
-                            b.style.top = (minY - 8) + 'px';
-                            b.style.width = (bw + 20) + 'px';
-                            b.style.height = (bh + 16) + 'px';
+                            b.style.left = (minX - padX) + 'px';
+                            b.style.top = (minY - padY) + 'px';
+                            b.style.width = (bw + padX * 2) + 'px';
+                            b.style.height = (bh + padY * 2) + 'px';
                         } else if (isModelTerm) {
                             b.classList.add('pdf-highlight-model');
-                            b.style.left = (minX - 10) + 'px';
-                            b.style.top = (minY - 8) + 'px';
-                            b.style.width = (bw + 20) + 'px';
-                            b.style.height = (bh + 16) + 'px';
+                            b.style.left = (minX - 12) + 'px';
+                            b.style.top = (minY - 9) + 'px';
+                            b.style.width = (bw + 24) + 'px';
+                            b.style.height = (bh + 18) + 'px';
                         } else {
                             b.style.left = (minX - 3) + 'px';
                             b.style.top = (minY - 3) + 'px';
