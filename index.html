@@ -383,7 +383,7 @@
         let globalRotation = 0; let singlePageRotations = {};
         let activeHighlightTerms = []; let activePreviewHit = null; let previewHits = []; let activePreviewHitIndex = -1;
         let renderTasks = {}; let pdfTextCache = {}; let parsedPdfDocCache = {};
-        let activeModels = []; let scanSessionId = 0; let jumpToken = 0; let renderEpoch = 0;
+        let activeModels = []; let currentPdfKey = ''; let scanSessionId = 0; let jumpToken = 0; let renderEpoch = 0;
         let excelDataSheets = []; let wordDataFiles = [];
 
         /* ================= BỘ QUẢN LÝ DANH SÁCH THÔNG SỐ ================= */
@@ -1700,13 +1700,13 @@
                 let from = 0, foundP, occ = 0;
                 if (termLower) {
                     while ((foundP = item.lowerText.indexOf(termLower, from)) !== -1) {
-                        previewHits.push({ fileName: item.file.name, pageNum: item.pageNum, term: termLower, occurrenceIndex: occ });
+                        previewHits.push({ fileName: item.file.name, fileKey: item.file.webkitRelativePath || item.file.name, pageNum: item.pageNum, term: termLower, occurrenceIndex: occ });
                         occ++;
                         from = foundP + Math.max(1, termLower.length);
                     }
                 }
                 if (occ === 0) {
-                    previewHits.push({ fileName: item.file.name, pageNum: item.pageNum, term: termLower || 'hit', occurrenceIndex: 0 });
+                    previewHits.push({ fileName: item.file.name, fileKey: item.file.webkitRelativePath || item.file.name, pageNum: item.pageNum, term: termLower || 'hit', occurrenceIndex: 0 });
                 }
 
                 const hlRegex = new RegExp(`(${activeHighlightTerms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
@@ -1716,10 +1716,11 @@
                 card.className = 'answer-card';
                 card.innerHTML = `
                     <div class="card-header">
-                        <span class="card-file">📄 ${item.file.name}</span>
+                        <span class="card-file" title="${(item.file.webkitRelativePath || item.file.name).replace(/"/g,'&quot;')}">📄 ${item.file.name}</span>
                         <span class="card-page">Trang ${item.pageNum}${item.countOnPage > 1 ? ` (${item.countOnPage} vị trí)` : ''}</span>
                     </div>
                     <div class="card-note-badge ${item.badgeClass}">${item.matchNote}</div>
+                    <div style="font-size:10px;color:#888;margin:2px 0 4px;word-break:break-all;">📁 ${(item.file.webkitRelativePath || item.file.name).replace(/</g,'&lt;')}</div>
                     <div class="card-snippet">${highlightSnippet}</div>
                     <div class="card-actions">
                         <button class="btn-card btn-card-view" onclick="goToPreviewHit(${targetHitIndex})">👁️ Xem trực tiếp</button>
@@ -2204,7 +2205,7 @@
 
         /* ================= PREVIEW VÀ HIGHLIGHT Ô EXCEL ================= */
         function showExcelPreview(result, model) {
-            document.getElementById('activeDocTitle').textContent = `📊 Excel Preview · ${result.sheetName}`;
+            currentPdfKey = ''; document.getElementById('activeDocTitle').textContent = `📊 Excel Preview · ${result.sheetName}`;
             document.getElementById('officeControls').style.display = 'flex';
             document.getElementById('pdfControls').style.display = 'none';
 
@@ -2225,7 +2226,7 @@
             activePreviewHit = hit;
             document.getElementById('officeControls').style.display = 'flex';
             document.getElementById('pdfControls').style.display = 'none';
-            document.getElementById('activeDocTitle').textContent = `📊 Excel Preview · ${hit.sheetName}`;
+            currentPdfKey = ''; document.getElementById('activeDocTitle').textContent = `📊 Excel Preview · ${hit.sheetName}`;
 
             const container = document.getElementById('pdfScrollContainer'); container.replaceChildren();
             const wrap = document.createElement('div'); wrap.className = 'office-sheet-wrap';
@@ -2338,7 +2339,7 @@
                 document.querySelectorAll('.pdf-highlight-current').forEach(el => el.classList.remove('pdf-highlight-current'));
 
                 // 1. Mở file PDF chứa kết quả
-                await jumpToTargetPdf(hit.fileName, targetPage);
+                await jumpToTargetPdf(hit.fileKey || hit.fileName, targetPage);
                 if (myToken !== jumpToken) return;
 
                 // 2. Cuộn tới trang đích
@@ -2507,15 +2508,20 @@
             return run;
         }
         async function _jumpToTargetPdfImpl(fileName, targetPage) {
-            const file = filteredPdfFiles.find(f => f.name === fileName) || allMasterFiles.find(f => f.name === fileName); 
+            const keyOf = f => f.webkitRelativePath || f.name;
+            const file = filteredPdfFiles.find(f => keyOf(f) === fileName) || allMasterFiles.find(f => keyOf(f) === fileName)
+                      || filteredPdfFiles.find(f => f.name === fileName) || allMasterFiles.find(f => f.name === fileName); 
             if (!file) return;
             document.getElementById('pdfControls').style.display = 'flex';
             document.getElementById('officeControls').style.display = 'none';
             const cacheKey = file.webkitRelativePath || file.name;
             setActiveDocPath(file);
 
-            if (!currentPdfDoc || document.getElementById('activeDocTitle').innerText !== `📄 ${file.name}`) {
-                document.getElementById('activeDocTitle').innerText = `📄 ${file.name}`;
+            if (!currentPdfDoc || currentPdfKey !== cacheKey) {
+                currentPdfKey = cacheKey;
+                const titleEl = document.getElementById('activeDocTitle');
+                titleEl.innerText = `📄 ${file.name}`;
+                titleEl.title = cacheKey;
                 currentPdfDoc = parsedPdfDocCache[cacheKey] || await pdfjsLib.getDocument({
                     data: new Uint8Array(await file.arrayBuffer()),
                     ...PDF_JS_CONFIG
