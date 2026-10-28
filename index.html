@@ -40,6 +40,13 @@
         .input-group label { font-size: 11px; font-weight: bold; color: #aaa; }
         .input-group input[type="text"] { display: block; width: 100%; min-width: 0; padding: 7px 10px; background: #1e1e1e; border: 1px solid var(--border); color: #fff; border-radius: 4px; outline: none; font-size: 13px; }
         .input-group input[type="text"]:focus { border-color: var(--accent); }
+        .input-group textarea.model-input { display: block; width: 100%; min-width: 0; min-height: 82px; resize: vertical; padding: 7px 10px; background: #1e1e1e; border: 1px solid var(--border); color: #fff; border-radius: 4px; outline: none; font-size: 13px; line-height: 1.4; }
+        .input-group textarea.model-input:focus { border-color: var(--accent); }
+        .bulk-model-backdrop { display: none; position: fixed; inset: 0; z-index: 1000; align-items: center; justify-content: center; padding: 20px; background: rgba(0,0,0,.72); }
+        .bulk-model-backdrop.open { display: flex; }
+        .bulk-model-dialog { width: min(680px, 96vw); background: #252526; border: 1px solid #555; border-radius: 8px; padding: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.6); }
+        .bulk-model-dialog textarea { width: 100%; min-height: 260px; resize: vertical; margin: 12px 0; padding: 10px; background: #1e1e1e; border: 1px solid #555; border-radius: 4px; color: #fff; font: 13px/1.5 Consolas, monospace; }
+        .bulk-model-actions { display: flex; justify-content: flex-end; gap: 8px; }
         
         /* Autocomplete Suggestions */
         .autocomplete-wrap { position: relative; width: 100%; }
@@ -90,9 +97,13 @@
         .side-fcu { border-left: 3px solid #29a3e0; background: rgba(41,163,224,0.06); }
         .side-cdu { border-left: 3px solid #ff8a3d; background: rgba(255,138,61,0.06); }
         .side-head { display: flex; justify-content: space-between; align-items: center; font-size: 11px; font-weight: bold; }
-        .side-fcu .side-head > span:first-child { color: #5cc4f5; }
-        .side-cdu .side-head > span:first-child { color: #ffa566; }
+        .side-fcu .side-toggle { color: #5cc4f5; }
+        .side-cdu .side-toggle { color: #ffa566; }
         .side-panel .param-list-container { height: 130px; }
+        .side-toggle { display: inline-flex; align-items: center; gap: 5px; background: transparent; border: 0; padding: 2px 0; color: inherit; font: inherit; font-weight: bold; cursor: pointer; text-align: left; }
+        .side-toggle-arrow { display: inline-block; transition: transform .15s ease; }
+        .side-panel.collapsed .side-toggle-arrow { transform: rotate(-90deg); }
+        .side-panel.collapsed .add-param-box, .side-panel.collapsed .param-list-container { display: none; }
         
         /* Results Pane */
         .results-pane { width: 450px; min-width: 320px; max-width: 750px; background: #202020; display: flex; flex-direction: column; overflow: hidden; }
@@ -140,6 +151,11 @@
         .preview-nav { display: none; align-items: center; gap: 4px; flex: 0 0 230px; }
         .preview-nav button#previewPrevBtn, .preview-nav button#previewNextBtn { width: 80px; min-width: 80px; text-align: center; padding: 0 4px; }
         .preview-nav span#previewHitCounter { width: 62px; min-width: 62px; text-align: center; font-variant-numeric: tabular-nums; display: inline-block; }
+        .pdf-spec-nav { display: none; align-items: center; gap: 4px; flex: 0 0 auto; }
+        .pdf-spec-nav button { min-width: 72px; text-align: center; padding: 0 6px; }
+        .pdf-spec-nav span { min-width: 56px; text-align: center; font-variant-numeric: tabular-nums; }
+        .pdf-toolbar.has-spec-nav { gap: 5px; }
+        .pdf-toolbar.has-spec-nav .pdf-title-zone { flex: 0 1 190px; max-width: 190px; }
 
         .zoom-text { font-weight: bold; color: #5bc0be; font-size: 12px; min-width: 45px; text-align: center; }
         .page-jump-input { width: 74px; height: 28px; padding: 2px 6px; background: #1e1e1e; color: #fff; border: 1px solid var(--accent); border-radius: 4px; font-size: 12px; outline: none; box-sizing: border-box; }
@@ -277,14 +293,15 @@
                 <label style="color: #ff9800;">📌 Bước 1: NHẬP MODEL </label>
                 <div style="display: flex; gap: 6px;">
                     <div class="autocomplete-wrap" style="flex: 1;">
-                        <input id="modelInput" type="text" placeholder="Vd: FTKF35, FXAQ25, FBA100..." autocomplete="off" onkeydown="if(event.key==='Enter'&&!autocompleteEnterHandled){event.preventDefault();addSearchModel();}">
+                        <textarea id="modelInput" class="model-input" rows="4" placeholder="Dán nhiều model, cách nhau bằng dấu phẩy, dấu chấm phẩy hoặc xuống dòng. Ví dụ: FXFX100AVM, FCF100CVM, RXYQ10BVM, FTKB50/RKB50ZVMV" autocomplete="off" onkeydown="if(event.key==='Enter'&&(event.ctrlKey||event.metaKey)){event.preventDefault();addSearchModel();}"></textarea>
                         <div id="modelDatalist" class="autocomplete-suggestions"></div>
                     </div>
-                    <button type="button" class="btn-card" style="background: var(--accent); color: #fff; padding: 0 12px; font-weight: bold; font-size: 12px; white-space: nowrap;" onclick="addSearchModel()">Thêm +</button>
+                    <button type="button" class="btn-card" style="align-self:flex-start;height:34px;background: var(--accent); color: #fff; padding: 0 12px; font-weight: bold; font-size: 12px; white-space: nowrap;" onclick="addSearchModel()">Thêm +</button>
                 </div>
+                <button type="button" class="btn-card" style="align-self:flex-start;margin-top:2px;background:#315a84;color:#fff;" onclick="openBulkModelEntry()">📋 Dán nhiều model từ Excel</button>
 
                 <!-- DANH SÁCH MODEL ĐÃ THÊM -->
-                <div id="searchModelListBox" style="display: flex; flex-direction: column; gap: 4px; margin-top: 6px; max-height: 130px; overflow-y: auto; background: #1e1e1e; border: 1px solid var(--border); border-radius: 4px; padding: 4px;">
+                <div id="searchModelListBox" style="display: flex; flex-direction: column; gap: 3px; margin-top: 6px; max-height: 112px; overflow-y: auto; background: #1e1e1e; border: 1px solid var(--border); border-radius: 4px; padding: 3px;">
                     <div style="color: #666; font-size: 11px; text-align: center; padding: 6px;">Chưa có model (Gõ rồi bấm Thêm +)</div>
                 </div>
             </div>
@@ -306,7 +323,7 @@
             <!-- DÀN LẠNH -->
             <div class="input-group side-panel side-fcu">
                 <div class="side-head">
-                    <span>❄️ THÔNG SỐ DÀN LẠNH (FCU)</span>
+                    <button type="button" class="side-toggle" id="toggleSideFCU" aria-expanded="true" onclick="toggleSpecSide('FCU')"><span class="side-toggle-arrow">▾</span><span>❄️ THÔNG SỐ DÀN LẠNH (FCU)</span></button>
                     <div class="toggle-links">
                         <span onclick="toggleAllParams('FCU', true)">[Tất cả]</span>
                         <span class="danger" onclick="toggleAllParams('FCU', false)">[Bỏ hết]</span>
@@ -322,7 +339,7 @@
             <!-- DÀN NÓNG -->
             <div class="input-group side-panel side-cdu">
                 <div class="side-head">
-                    <span>🔥 THÔNG SỐ DÀN NÓNG (CDU)</span>
+                    <button type="button" class="side-toggle" id="toggleSideCDU" aria-expanded="true" onclick="toggleSpecSide('CDU')"><span class="side-toggle-arrow">▾</span><span>🔥 THÔNG SỐ DÀN NÓNG (CDU)</span></button>
                     <div class="toggle-links">
                         <span onclick="toggleAllParams('CDU', true)">[Tất cả]</span>
                         <span class="danger" onclick="toggleAllParams('CDU', false)">[Bỏ hết]</span>
@@ -344,8 +361,21 @@
                 </select>
             </div>
             <button class="btn-search-excel" onclick="extractExcelOnly()">📊 Trích Xuất Bảng Spec Excel</button>
+            <button class="btn-search-excel" style="margin-top:5px; background:#8a5a20;" onclick="extractPdfSpecTables()">📄 Thử trích bảng spec từ PDF → Excel</button>
 
             <div class="search-status-bar" id="searchStatusBar"></div>
+        </div>
+
+        <div class="bulk-model-backdrop" id="bulkModelBackdrop" role="dialog" aria-modal="true" aria-labelledby="bulkModelTitle">
+            <div class="bulk-model-dialog">
+                <b id="bulkModelTitle" style="color:#5bc0be;">Dán danh sách model từ Excel</b>
+                <div style="font-size:12px;color:#aaa;margin-top:5px;">Copy một hoặc nhiều cột/hàng từ Excel rồi dán vào đây. Mỗi ô, tab hoặc dòng sẽ được tách thành một model; model trùng sẽ không thêm lại.</div>
+                <textarea id="bulkModelInput" placeholder="Dán dữ liệu Excel vào đây..."></textarea>
+                <div class="bulk-model-actions">
+                    <button type="button" class="btn-card" style="background:#444;color:#fff;" onclick="closeBulkModelEntry()">Hủy</button>
+                    <button type="button" class="btn-card" style="background:var(--accent);color:#fff;" onclick="importBulkModels()">Nhập danh sách model</button>
+                </div>
+            </div>
         </div>
 
         <div class="resizer" id="resizer1"></div>
@@ -377,6 +407,11 @@
                     <button class="pdf-btn" id="previewPrevBtn" onclick="navigatePreviewHit(-1)" disabled>◀ Previous</button>
                     <span class="zoom-text" id="previewHitCounter">0 / 0</span>
                     <button class="pdf-btn" id="previewNextBtn" onclick="navigatePreviewHit(1)" disabled>Next ▶</button>
+                </div>
+                <div class="pdf-btn-group pdf-spec-nav" id="pdfSpecNavigator" aria-label="Điều hướng bảng thông số PDF">
+                    <button class="pdf-btn" id="pdfSpecPrevBtn" onclick="navigatePdfSpecRow(-1)" disabled>◀ Previous</button>
+                    <span class="zoom-text" id="pdfSpecToolbarCounter">0 / 0</span>
+                    <button class="pdf-btn" id="pdfSpecNextBtn" onclick="navigatePdfSpecRow(1)" disabled>Next ▶</button>
                 </div>
                 <div class="pdf-btn-group" id="pdfControls">
                     <button class="pdf-btn" onclick="rotateAll('left')">↺ Xoay trái 90°</button>
@@ -411,7 +446,7 @@
         let activeHighlightTerms = []; let activePreviewHit = null; let previewHits = []; let activePreviewHitIndex = -1;
         let renderTasks = {}; let pdfTextCache = {}; let parsedPdfDocCache = {};
         let activeModels = []; let currentPdfKey = ''; let scanSessionId = 0; let jumpToken = 0; let renderEpoch = 0;
-        let excelDataSheets = []; let wordDataFiles = []; let officeFiles = [];
+        let excelDataSheets = []; let wordDataFiles = []; let officeFiles = []; let officeReadErrors = [];
 
         /* ================= BỘ QUẢN LÝ DANH SÁCH THÔNG SỐ (TÁCH DÀN LẠNH / DÀN NÓNG) ================= */
         /* Hằng số + hàm dùng chung cho 2 dàn. Đặt ở đây (trước initParamsManager) để tránh lỗi khởi tạo muộn. */
@@ -981,6 +1016,7 @@
             if(tabId === 'tabPdf') document.getElementById('btnTabPdf').classList.add('active');
             else document.getElementById('btnTabExcel').classList.add('active');
             document.getElementById(tabId).classList.add('active');
+            syncPreviewNavigator();
         }
 
         /* ================= BỘ NHỚ VÀ QUẢN LÝ NGUỒN FILE ================= */
@@ -1279,6 +1315,7 @@
         // Đọc toàn bộ file Office (Excel + Word) lấy từ folder
         async function parseOfficeFiles(files) {
             const sheets = [], docs = [];
+            officeReadErrors = [];
             const excelFiles = files.filter(f => /\.(xlsx|xls|xlsm|xlsb|ods|csv)$/i.test(f.name) && !f.name.startsWith('~'));
             const wordFiles = files.filter(f => /\.docx$/i.test(f.name) && !f.name.startsWith('~'));
 
@@ -1287,6 +1324,9 @@
                 updateStatusUI(`⏳ Đang đọc Excel ${i + 1}/${excelFiles.length}: ${file.name.substring(0, 30)}`);
                 try {
                     const workbook = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+                    if (!workbook.SheetNames.length) {
+                        officeReadErrors.push({ name: file.name, message: 'Không có worksheet để đọc.' });
+                    }
                     for (const sheetName of workbook.SheetNames) {
                         sheets.push({
                             sheetName: `${file.name} · ${sheetName}`,
@@ -1295,7 +1335,10 @@
                             worksheet: workbook.Sheets[sheetName]
                         });
                     }
-                } catch (e) { console.warn('Không đọc được', file.name, e); }
+                } catch (e) {
+                    officeReadErrors.push({ name: file.name, message: String(e?.message || e) });
+                    console.warn('Không đọc được', file.name, e);
+                }
                 await new Promise(r => setTimeout(r, 0));
             }
 
@@ -1310,7 +1353,10 @@
                             mammoth.convertToHtml({ arrayBuffer })
                         ]);
                         docs.push({ name: file.name, relPath: file.webkitRelativePath || file.name, text: result.value || '', html: converted.value || '', sourceType: 'docx' });
-                    } catch (e) { console.warn('Không đọc được', file.name, e); }
+                    } catch (e) {
+                        officeReadErrors.push({ name: file.name, message: String(e?.message || e) });
+                        console.warn('Không đọc được', file.name, e);
+                    }
                     await new Promise(r => setTimeout(r, 0));
                 }
             }
@@ -1343,7 +1389,8 @@
                 refreshAutocompleteSuggestions();
                 updateStatusUI(`Đã đồng bộ xong dữ liệu.`);
             } catch (error) {
-                updateStatusUI(`Đã nạp xong.`);
+                console.error('Không thể làm mới nguồn tài liệu:', error);
+                updateStatusUI(`Lỗi nạp folder: ${error.message || error}`);
             }
         }
 
@@ -1382,7 +1429,7 @@
             if (!confirm("Bạn có chắc chắn muốn xóa folder đã ghi nhớ? (Chỉ mục đã quét vẫn được giữ lại)")) return;
             await removeSourceHandle('pdf-folder');
             await removeSourceHandle('excel-files');
-            sourceFolderHandle = null; excelFileHandles = []; allMasterFiles = []; loadedPdfFiles = []; filteredPdfFiles = []; excelDataSheets = []; wordDataFiles = []; officeFiles = [];
+            sourceFolderHandle = null; excelFileHandles = []; allMasterFiles = []; loadedPdfFiles = []; filteredPdfFiles = []; excelDataSheets = []; wordDataFiles = []; officeFiles = []; officeReadErrors = [];
             document.getElementById('docTypeSelect').innerHTML = '<option value="ALL">🗂️ -- Tất cả PDF --</option>';
             document.getElementById('docTypeSelect').disabled = true;
             document.getElementById('tabPdf').innerHTML = '<p style="color:#777; text-align:center; margin-top:30px;">Dữ liệu đã được đặt lại.</p>';
@@ -1401,11 +1448,19 @@
             if (allMasterFiles.length) txt.push(`<b>${allMasterFiles.length}</b> file PDF`);
             if (allMasterFiles.length) txt.push(`⚡ chỉ mục <b>${countIndexedFiles()}/${allMasterFiles.length}</b>`);
             if (excelDataSheets.length) txt.push(`<b>${excelDataSheets.length}</b> sheet Excel`);
+            const excelFileCount = officeFiles.filter(file => /\.(xlsx|xls|xlsm|xlsb|ods|csv)$/i.test(file.name)).length;
+            if (excelFileCount) {
+                const loadedExcelFiles = new Set(excelDataSheets.map(sheet => sheet.relPath)).size;
+                txt.push(`Excel <b>${loadedExcelFiles}/${excelFileCount}</b> file`);
+            }
             if (wordDataFiles.length) txt.push(`<b>${wordDataFiles.length}</b> file Word/PPT`);
             const escapeStatus = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
             const sourceNames = [sourceFolderHandle?.name, ...excelFileHandles.map(handle => handle.name)].filter(Boolean).map(escapeStatus);
             const base = txt.length ? txt.join(' · ') : 'Chưa nạp dữ liệu.';
-            document.getElementById('folderStatus').innerHTML = `${base}${sourceNames.length ? `<br>📂 ${sourceNames.join(' · ')}` : ''}${message ? `<br><b>${escapeStatus(message)}</b>` : ''}`;
+            const readErrorLabel = officeReadErrors.length
+                ? `<br><span title="${officeReadErrors.map(error => `${error.name}: ${error.message}`).map(escapeStatus).join('\n')}">⚠️ Không đọc được ${officeReadErrors.length} file Office; rê chuột để xem chi tiết.</span>`
+                : '';
+            document.getElementById('folderStatus').innerHTML = `${base}${sourceNames.length ? `<br>📂 ${sourceNames.join(' · ')}` : ''}${message ? `<br><b>${escapeStatus(message)}</b>` : ''}${readErrorLabel}`;
         }
 
         function configureDocumentTypeFilter() {
@@ -1522,21 +1577,67 @@
         /* ================= QUẢN LÝ DANH SÁCH MODEL TÌM KIẾM ================= */
         let searchModelList = [];
 
+        function parseSearchModelInput(value) {
+            return String(value || '')
+                .split(/[,;|\s]+/)
+                .map(model => model.trim().replace(/^[.]+|[.]+$/g, '').toUpperCase())
+                .filter(model => model.length >= 2 && !/^\d+$/.test(model));
+        }
+
+        function openBulkModelEntry() {
+            const backdrop = document.getElementById('bulkModelBackdrop');
+            backdrop.classList.add('open');
+            document.getElementById('bulkModelInput').focus();
+        }
+
+        function closeBulkModelEntry() {
+            document.getElementById('bulkModelBackdrop').classList.remove('open');
+        }
+
+        function importBulkModels() {
+            const models = parseSearchModelInput(document.getElementById('bulkModelInput').value);
+            let added = 0;
+            models.forEach(model => {
+                if (!searchModelList.includes(model)) {
+                    searchModelList.push(model);
+                    added++;
+                }
+            });
+            renderSearchModelList();
+            document.getElementById('bulkModelInput').value = '';
+            closeBulkModelEntry();
+            if (!added && models.length) alert('Các model này đã có trong danh sách.');
+            else if (!models.length) alert('Không tìm thấy mã model trong nội dung đã dán.');
+        }
+
+        document.getElementById('bulkModelBackdrop').addEventListener('click', event => {
+            if (event.target === event.currentTarget) closeBulkModelEntry();
+        });
+        document.getElementById('bulkModelInput').addEventListener('keydown', event => {
+            if (event.key === 'Escape') closeBulkModelEntry();
+            if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                event.preventDefault();
+                importBulkModels();
+            }
+        });
+
         function renderSearchModelList() {
             const box = document.getElementById('searchModelListBox');
             if (!box) return;
+            const escapeHtml = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+            const heading = `<div style="position:sticky;top:-4px;z-index:1;display:flex;justify-content:space-between;align-items:center;padding:3px 4px;background:#1e1e1e;color:#aaa;font-size:11px;"><span>${searchModelList.length} model đã chọn</span>${searchModelList.length ? '<button type="button" onclick="clearSearchModels()" style="background:#444;color:#fff;border:1px solid #555;border-radius:3px;padding:2px 6px;cursor:pointer;">Xóa tất cả</button>' : ''}</div>`;
             if (searchModelList.length === 0) {
-                box.innerHTML = `<div style="color: #666; font-size: 11px; text-align: center; padding: 6px;">Chưa có model (Gõ rồi bấm Thêm +)</div>`;
+                box.innerHTML = heading + `<div style="color: #666; font-size: 11px; text-align: center; padding: 6px;">Chưa có model (Gõ rồi bấm Thêm +)</div>`;
                 return;
             }
-            let html = '';
+            let html = heading;
             searchModelList.forEach((model, idx) => {
                 html += `
-                <div style="display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 4px 8px; border-radius: 3px; border: 1px solid #3c3c3c;">
-                    <span style="color: #5bc0be; font-weight: bold; font-size: 12px;">${model}</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: #2a2a2a; padding: 2px 6px; border-radius: 3px; border: 1px solid #3c3c3c; min-height:24px;">
+                    <span style="color: #5bc0be; font-weight: bold; font-size: 11px;">${escapeHtml(model)}</span>
                     <div style="display: flex; gap: 4px;">
-                        <button type="button" onclick="editSearchModel(${idx})" style="background: #444; color: #fff; border: 1px solid #555; padding: 2px 7px; border-radius: 3px; cursor: pointer; font-size: 11px;">Edit</button>
-                        <button type="button" onclick="removeSearchModel(${idx})" style="background: #c53030; color: #fff; border: none; padding: 2px 8px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 12px;" title="Xóa">-</button>
+                        <button type="button" onclick="editSearchModel(${idx})" style="background: #444; color: #fff; border: 1px solid #555; padding: 1px 5px; border-radius: 3px; cursor: pointer; font-size: 10px;">Sửa</button>
+                        <button type="button" onclick="removeSearchModel(${idx})" style="background: #c53030; color: #fff; border: none; padding: 1px 6px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 11px;" title="Xóa">×</button>
                     </div>
                 </div>`;
             });
@@ -1545,16 +1646,17 @@
 
         function addSearchModel() {
             const input = document.getElementById('modelInput');
-            const val = input.value.trim();
-            if (!val) return;
-            const parts = val.split(/[,;|\n]+/).map(m => m.trim().toUpperCase()).filter(Boolean);
-            parts.forEach(p => {
-                // Bỏ qua các chuỗi quá ngắn hoặc thuần túy là số (như "10")
-                if (p.length >= 2 && !/^\d+$/.test(p) && !searchModelList.includes(p)) {
-                    searchModelList.push(p);
-                }
+            const parts = parseSearchModelInput(input.value);
+            if (!parts.length) return;
+            parts.forEach(model => {
+                if (!searchModelList.includes(model)) searchModelList.push(model);
             });
             input.value = '';
+            renderSearchModelList();
+        }
+
+        function clearSearchModels() {
+            searchModelList = [];
             renderSearchModelList();
         }
 
@@ -1576,13 +1678,19 @@
             const list = [...searchModelList];
             const raw = document.getElementById('modelInput').value.trim();
             if (raw) {
-                const parts = raw.split(/[,;|\n]+/).map(m => m.trim().toUpperCase()).filter(Boolean);
-                parts.forEach(p => { 
-                    // Chặn lọc số thuần túy như "10"
-                    if (p.length >= 2 && !/^\d+$/.test(p) && !list.includes(p)) list.push(p); 
+                parseSearchModelInput(raw).forEach(model => {
+                    if (!list.includes(model)) list.push(model);
                 });
             }
             return list;
+        }
+
+        function toggleSpecSide(side) {
+            const panel = document.querySelector(side === 'FCU' ? '.side-fcu' : '.side-cdu');
+            const button = document.getElementById('toggleSide' + side);
+            if (!panel || !button) return;
+            const collapsed = panel.classList.toggle('collapsed');
+            button.setAttribute('aria-expanded', String(!collapsed));
         }
 
         /* ================= QUẢN LÝ LỊCH SỬ TÌM KIẾM ================= */
@@ -2502,6 +2610,7 @@
             const fallbackSide = (sideMode === 'FCU' || sideMode === 'CDU') ? sideMode : guessSideFromModel(modelClean);
 
             for (let sheetObj of excelDataSheets) {
+                if (!inSelectedDocFolder(sheetObj.relPath)) continue;
                 const matrix = sheetObj.data || [];
                 if (matrix.length === 0) continue;
 
@@ -2631,6 +2740,9 @@
 
             switchTab('tabExcel');
             tabExcel.innerHTML = '';
+            window.latestPdfSpecRows = [];
+            activePdfSpecRowIndex = -1;
+            syncPreviewNavigator();
             statusBar.style.display = 'block';
             statusBar.innerHTML = `⚡ Đang quét thông số cho ${modelList.length} Model trong tất cả file Excel...`;
 
@@ -2731,27 +2843,39 @@
                 '<br><span style="color:#888;">✅ ô tiêu đề đúng model · ⚠️ model nằm chung ô với model khác (tổ hợp), không dùng để điền bảng tổng hợp</span>';
             tabExcel.appendChild(legend);
 
-            // ---- BẢNG TỔNG HỢP: điền thiếu từ mọi nguồn (ưu tiên nguồn xuất hiện trước) ----
+            // ---- BẢNG TỔNG HỢP: chỉ ghép các nguồn khớp chính xác cùng model ----
             if (sourceNames.length > 1) {
                 const mergedCols = modelNames.map(mn => {
                     const values = {};
                     const cands = found.filter(f => f.model === mn);
                     const exactOnes = cands.filter(f => f.type === 'exact').sort((a, b) => b.cov - a.cov);
-                    // Chỉ dùng nguồn khớp ĐÚNG model để điền; nếu không có thì chỉ lấy 1 nguồn tổ hợp tốt nhất (không trộn)
-                    const useList = exactOnes.length ? exactOnes : [cands.slice().sort((a, b) => b.cov - a.cov)[0]];
-                    useList.forEach(f => {
+                    // Không lấy nguồn khớp một phần nếu đã có nguồn khớp đúng model.
+                    // Nguồn khớp đúng được xếp theo độ phủ; nguồn sau chỉ bổ sung thông số còn thiếu.
+                    const selectedSources = exactOnes.length
+                        ? exactOnes
+                        : cands.slice().sort((a, b) => b.cov - a.cov).slice(0, 1);
+                    selectedSources.forEach(f => {
                         f.res.params.forEach(pr => {
                             const key = (pr.pname || stripSideTag(pr.label)) + ` [${SIDE_NAME[pr.side || 'UNK']}]`;
                             if (!values[key]) values[key] = { v: pr.value, src: f.res.sheetName, pid: pr.pid };
                         });
                     });
-                    return { name: mn, sheetName: 'Tổng hợp', values, covered: new Set(Object.values(values).map(x => x.pid)).size, note: exactOnes.length ? '' : '⚠️ chỉ có nguồn tổ hợp' };
+                    const usedSources = [...new Set(Object.values(values).map(value => value.src))];
+                    return {
+                        name: mn,
+                        sheetName: usedSources.join(' · ') || 'Tổng hợp',
+                        values,
+                        covered: new Set(Object.values(values).map(x => x.pid)).size,
+                        note: selectedSources.length
+                            ? `${exactOnes.length ? '✅ đúng model' : '⚠️ chỉ có nguồn tổ hợp'}${usedSources.length > 1 ? ` · bổ sung từ ${usedSources.length} nguồn` : ''}`
+                            : ''
+                    };
                 });
                 const allKeys = [...new Set(mergedCols.flatMap(c => Object.keys(c.values)))];
                 const orderOfKey = k => { const i = activeParams.findIndex(p => p.name === stripSideTag(k)); return i < 0 ? 999 : i; };
                 const mergedLabels = allKeys.slice().sort((a, b) =>
                     (SIDE_ORDER.indexOf(sideOfLabel(a)) - SIDE_ORDER.indexOf(sideOfLabel(b))) || (orderOfKey(a) - orderOfKey(b)));
-                buildTable('📊 BẢNG TỔNG HỢP (điền đủ từ mọi nguồn)', 'Mỗi giá trị kèm số <span style="color:#ffb74d;">[n]</span> cho biết lấy từ nguồn nào (rê chuột để xem tên). Dùng để đối chiếu với các bảng theo từng nguồn bên dưới.', mergedLabels, mergedCols, true);
+                buildTable('📊 BẢNG TỔNG HỢP', 'Với cùng model khớp chính xác, bảng sẽ bổ sung thông số còn thiếu từ nguồn khác. Mỗi giá trị có số <span style="color:#ffb74d;">[n]</span> để xem tài liệu/sheet nguồn (rê chuột lên số). Nếu chỉ khớp model dạng tổ hợp, chỉ dùng một nguồn tốt nhất.', mergedLabels, mergedCols, true);
             }
 
             // ---- MỖI NGUỒN 1 BẢNG: để bạn so sánh và tự chọn nguồn đáng tin ----
@@ -2780,6 +2904,538 @@
             if (!t) return;
             window.latestExcelResults = t.columns.map(c => ({ matchedModel: c.name, sheetName: c.sheetName, params: c.params }));
             exportSpecCardToExcel();
+        }
+
+        function pdfSpecLinesFromItems(items) {
+            const lineRows = [];
+            (items || []).forEach(item => {
+                const text = String(item.str || '').replace(/\s+/g, ' ').trim();
+                if (!text || !item.transform) return;
+                const x = Number(item.transform[4]), y = Number(item.transform[5]);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+                let line = lineRows.find(row => Math.abs(row.y - y) <= 2.5);
+                if (!line) { line = { y, items: [] }; lineRows.push(line); }
+                line.items.push({ text, x, width: Number(item.width) || 0 });
+            });
+            lineRows.forEach(line => line.items.sort((a, b) => a.x - b.x));
+            lineRows.sort((a, b) => b.y - a.y);
+            return lineRows;
+        }
+
+        function pdfSpecModelToken(text, models) {
+            const raw = String(text || '').trim();
+            const compact = compactModelCode(raw);
+            if (!compact || compact.length < 5) return '';
+            const requested = models.find(model => matchModelCell(raw, model));
+            return requested ? requested.toUpperCase() : '';
+        }
+
+        function pdfSpecAnyModelToken(text) {
+            const raw = String(text || '').trim();
+            return raw.length >= 5 && /^[a-z]{2,}\d[a-z0-9()-]*$/i.test(raw) ? raw.toUpperCase() : '';
+        }
+
+        function pdfSpecSideFromText(text) {
+            const n = normalizeExcelSearchText(text);
+            if (/\b(fcu|idu|indoor|dan lanh|cum lanh|cuc lanh)\b/.test(n)) return 'FCU';
+            if (/\b(cdu|odu|outdoor|dan nong|cum nong|cuc nong)\b/.test(n)) return 'CDU';
+            return '';
+        }
+
+        function parsePdfSpecPage(items, models, fileName, pageNum, fileKey = fileName) {
+            const lines = pdfSpecLinesFromItems(items);
+            const blocks = [];
+            const activeParams = userSpecParams.filter(param => param.checked);
+            const sideMode = (document.getElementById('specSideMode') || {}).value || 'auto';
+            const seenHeaders = new Set();
+            for (let h = 0; h < lines.length; h++) {
+                const headerLine = lines[h];
+                const modelCells = headerLine.items.map(item => ({
+                    name: pdfSpecAnyModelToken(item.text),
+                    requestedName: pdfSpecModelToken(item.text, models),
+                    center: item.x + item.width / 2
+                })).filter(cell => cell.name);
+                const wanted = modelCells.filter(cell => cell.requestedName);
+                if (!wanted.length || seenHeaders.has(h)) continue;
+                seenHeaders.add(h);
+
+                const uniqueCells = [];
+                modelCells.forEach(cell => {
+                    if (!uniqueCells.some(other => compactModelCode(other.name) === compactModelCode(cell.name))) uniqueCells.push(cell);
+                });
+                uniqueCells.sort((a, b) => a.center - b.center);
+                const firstCenter = uniqueCells[0].center;
+                const bounds = uniqueCells.map((cell, index) => {
+                    const prev = uniqueCells[index - 1], next = uniqueCells[index + 1];
+                    const gapBefore = prev ? cell.center - prev.center : (next ? next.center - cell.center : 160);
+                    const gapAfter = next ? next.center - cell.center : gapBefore;
+                    return { ...cell, left: cell.center - gapBefore / 2, right: cell.center + gapAfter / 2 };
+                });
+                const blockModels = [];
+                const selectedBounds = new Map();
+                wanted.forEach(cell => {
+                    if (blockModels.includes(cell.requestedName)) return;
+                    blockModels.push(cell.requestedName);
+                    selectedBounds.set(cell.requestedName, bounds.find(bound => compactModelCode(bound.name) === compactModelCode(cell.name)));
+                });
+                const rows = [];
+                let currentSide = '';
+                for (let p = Math.max(0, h - 12); p < h; p++) {
+                    const side = pdfSpecSideFromText(lines[p].items.map(item => item.text).join(' '));
+                    if (side) currentSide = side;
+                }
+                const pageText = lines.map(line => line.items.map(item => item.text).join(' ')).join(' ');
+                const pageHasFcu = /\b(fcu|idu|indoor|dan lanh|cum lanh|cuc lanh)\b/.test(normalizeExcelSearchText(pageText));
+                const pageHasCdu = /\b(cdu|odu|outdoor|dan nong|cum nong|cuc nong)\b/.test(normalizeExcelSearchText(pageText));
+                if (!currentSide && pageHasFcu !== pageHasCdu) currentSide = pageHasFcu ? 'FCU' : 'CDU';
+                if (!currentSide && blockModels.length === 1) currentSide = guessSideFromModel(blockModels[0]);
+
+                let previousY = headerLine.y;
+                for (let r = h + 1; r < lines.length && rows.length < 55; r++) {
+                    const line = lines[r];
+                    if (previousY - line.y > 28 && rows.length >= 2) break;
+                    previousY = line.y;
+                    const lineText = line.items.map(item => item.text).join(' ');
+                    const sideHit = pdfSpecSideFromText(lineText);
+                    if (sideHit) currentSide = sideHit;
+                    const rowModels = line.items.filter(item => pdfSpecAnyModelToken(item.text));
+                    if (rowModels.some(item => !blockModels.some(model => matchModelCell(item.text, model)))) break;
+
+                    const labelItems = line.items.filter(item => item.x + item.width / 2 < firstCenter - 20);
+                    const label = labelItems.map(item => item.text).join(' ').replace(/\s+/g, ' ').trim();
+                    if (!label || /^(model|models)$/i.test(label)) continue;
+                    const values = blockModels.map(name => {
+                        const cell = selectedBounds.get(name);
+                        if (!cell) return '';
+                        return line.items
+                            .filter(item => {
+                                if (labelItems.includes(item)) return false;
+                                const itemLeft = item.x;
+                                const itemRight = item.x + Math.max(item.width, 0.5);
+                                return itemRight > cell.left && itemLeft < cell.right;
+                            })
+                            .reduce((result, item, index, matchedItems) => {
+                                const previous = matchedItems[index - 1];
+                                const separator = !previous || item.x - (previous.x + previous.width) > 3 ? ' ' : '';
+                                return result + separator + item.text;
+                            }, '').replace(/\s+/g, ' ').trim();
+                    });
+                    if (!values.some(Boolean)) continue;
+                    const normalizedLabel = normalizeExcelSearchText(label);
+                    const explicitSide = currentSide || sideFromText(normalizedLabel);
+                    const modelSides = [...new Set(blockModels.map(guessSideFromModel).filter(Boolean))];
+                    const fallbackSide = sideMode === 'FCU' || sideMode === 'CDU'
+                        ? sideMode
+                        : (modelSides.length === 1 ? modelSides[0] : '');
+                    const rowSide = explicitSide || fallbackSide || 'UNK';
+                    const matchedParams = activeParams.filter(param => {
+                        if (!isRowMatchCheckedParam(normalizedLabel, param)) return false;
+                        if (rowSide !== 'UNK' && param.side && param.side !== rowSide) return false;
+                        return true;
+                    });
+                    if (!matchedParams.length) continue;
+                    rows.push({ side: rowSide, label, values, matchedParams: matchedParams.map(param => param.name) });
+                }
+                if (rows.length) blocks.push({ fileName, fileKey, pageNum, models: blockModels, rows });
+            }
+            return blocks;
+        }
+
+        function buildPdfSpecSummaryRows(blocks, models) {
+            const rows = [];
+            const duplicateRowsByKey = new Map();
+            blocks.forEach(block => block.rows.forEach(row => {
+                const rowKey = [row.side, normalizeExcelSearchText(row.label)].join('|');
+                const rowValues = Object.fromEntries(models.map(model => [model, '']));
+                const source = { fileName: block.fileName, fileKey: block.fileKey, pageNum: block.pageNum };
+                const sourceByModel = {};
+                block.models.forEach((model, modelIndex) => {
+                    const requestedModel = models.find(requested => compactModelCode(requested) === compactModelCode(model));
+                    const value = row.values[modelIndex] || '';
+                    if (requestedModel && value) {
+                        rowValues[requestedModel] = value;
+                        sourceByModel[requestedModel] = source;
+                    }
+                });
+                const candidates = duplicateRowsByKey.get(rowKey) || [];
+                let summaryRow = candidates.find(candidate => models.every(model =>
+                    !candidate.values[model] || !rowValues[model] ||
+                    normalizeExcelSearchText(candidate.values[model]) === normalizeExcelSearchText(rowValues[model])
+                ));
+                if (!summaryRow) {
+                    summaryRow = {
+                        ...source, sources: [source], sourceByModel,
+                        side: row.side, label: row.label, values: rowValues
+                    };
+                    candidates.push(summaryRow);
+                    duplicateRowsByKey.set(rowKey, candidates);
+                    rows.push(summaryRow);
+                } else {
+                    if (!summaryRow.sources.some(item => item.fileKey === source.fileKey && item.pageNum === source.pageNum)) {
+                        summaryRow.sources.push(source);
+                    }
+                    models.forEach(model => {
+                        if (!summaryRow.values[model] && rowValues[model]) {
+                            summaryRow.values[model] = rowValues[model];
+                            summaryRow.sourceByModel[model] = sourceByModel[model] || source;
+                        }
+                    });
+                }
+            }));
+            return rows
+                .filter(row => models.some(model => row.values[model]))
+                .sort((a, b) => {
+                    const sideOrder = { FCU: 0, CDU: 1, UNK: 2 };
+                    return (sideOrder[a.side] ?? 2) - (sideOrder[b.side] ?? 2);
+                });
+        }
+
+        function escapePdfSpecHtml(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+        }
+
+        function renderPdfSpecResultRows() {
+            const tbody = document.querySelector('#pdfSpecTable tbody');
+            if (!tbody) return;
+            const rows = window.latestPdfSpecRows || [];
+            const models = window.latestPdfSpecModels || [];
+            const sideOrder = { FCU: 0, CDU: 1, UNK: 2 };
+            rows.sort((a, b) => (sideOrder[a.side] ?? 2) - (sideOrder[b.side] ?? 2));
+            tbody.innerHTML = rows.map((row, index) => {
+                const sourceList = row.sources && row.sources.length ? row.sources : [row];
+                const sourceLabel = `${row.fileName} · trang ${row.pageNum}${sourceList.length > 1 ? ` · +${sourceList.length - 1} nguồn` : ''}`;
+                return `<tr id="pdf-spec-row-${index}"><td style="padding:5px;border:1px solid #555;white-space:nowrap;"><span>${escapePdfSpecHtml(row.label)}</span> <button class="btn-card" title="Mở đúng vị trí của thông số trong PDF" aria-label="Xem thông số ${escapePdfSpecHtml(row.label)}" style="background:#315a84;color:white;padding:2px 6px;margin-left:4px;" onclick="openPdfSpecRow(${index})">👁</button> <button class="btn-card" title="Xóa dòng thông số khỏi bảng và file Excel" aria-label="Xóa thông số ${escapePdfSpecHtml(row.label)}" style="background:#8b3030;color:white;padding:2px 6px;" onclick="deletePdfSpecRow(${index})">✖</button></td><td style="padding:5px;border:1px solid #555;white-space:nowrap;">${escapePdfSpecHtml(SIDE_NAME[row.side] || 'Chưa rõ dàn')}</td>${models.map(model => `<td style="padding:5px;border:1px solid #555;text-align:center;white-space:nowrap;">${escapePdfSpecHtml(row.values[model] || '—')}</td>`).join('')}<td style="padding:5px;border:1px solid #555;white-space:nowrap;">${escapePdfSpecHtml(sourceLabel)}</td></tr>`;
+            }).join('');
+            const heading = document.querySelector('#tabExcel .pdf-spec-result-count');
+            if (heading) heading.textContent = `Bảng tổng hợp · ${rows.length} dòng · ${models.length} model đã nhập`;
+            syncPreviewNavigator();
+        }
+
+        function deletePdfSpecRow(index) {
+            const rows = window.latestPdfSpecRows || [];
+            if (!rows[index]) return;
+            rows.splice(index, 1);
+            if (!rows.length) activePdfSpecRowIndex = -1;
+            else if (activePdfSpecRowIndex > index) activePdfSpecRowIndex--;
+            else if (activePdfSpecRowIndex >= rows.length) activePdfSpecRowIndex = rows.length - 1;
+            renderPdfSpecResultRows();
+        }
+
+        async function extractPdfSpecTables() {
+            const models = getActiveSearchModels();
+            const selectedFiles = [...filteredPdfFiles];
+            const tabExcel = document.getElementById('tabExcel');
+            const statusBar = document.getElementById('searchStatusBar');
+            const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+            const selectedFolderLabel = document.getElementById('docTypeSelect').selectedOptions[0]?.textContent || 'Tất cả PDF';
+            if (!models.length) return alert('Vui lòng nhập ít nhất một model trước khi trích PDF.');
+            if (!allMasterFiles.length) return alert('Chưa nạp file PDF catalogue.');
+            if (!selectedFiles.length) return alert('Thư mục PDF đang chọn không có tài liệu để quét.');
+            if (!userSpecParams.some(param => param.checked)) return alert('Hãy tích chọn ít nhất một tiêu chí thông số trước khi trích PDF.');
+            if (isPdfScanning) {
+                cancelScanRequested = true;
+                for (let wait = 0; isPdfScanning && wait < 50; wait++) await new Promise(resolve => setTimeout(resolve, 100));
+                if (isPdfScanning) return alert('Đang có thao tác tìm kiếm PDF chưa dừng. Vui lòng đợi thao tác đó kết thúc rồi thử lại.');
+            }
+
+            switchTab('tabExcel');
+            tabExcel.innerHTML = '';
+            statusBar.style.display = 'block';
+            cancelScanRequested = false;
+            isPdfScanning = true;
+            const blocks = [];
+            let failedFiles = 0;
+            let completedFiles = 0;
+            let scannedPages = 0;
+            const modelMatchers = models.map(buildModelMatchers).filter(Boolean);
+            const stopButton = `<button onmousedown="cancelPdfScan()" style="background:#c53030;color:#fff;border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-weight:bold;font-size:11px;">⏹️ Dừng trích xuất</button>`;
+            const setProgress = message => { statusBar.innerHTML = `<span>${message}</span>${stopButton}`; };
+
+            try {
+                await indexLoadPromise;
+                let nextFileIndex = 0;
+                const processFile = async () => {
+                    while (!cancelScanRequested) {
+                        const fileIndex = nextFileIndex++;
+                        if (fileIndex >= selectedFiles.length) return;
+                        const file = selectedFiles[fileIndex];
+                        const cacheKey = file.webkitRelativePath || file.name;
+                        try {
+                            const pages = await ensureFileIndexed(file, { shouldStop: () => cancelScanRequested });
+                            if (!pages || cancelScanRequested) return;
+                            const hits = pages.filter(page => {
+                                const pageText = page.lowerText || page.fullText || '';
+                                return modelMatchers.some(matcher => matcher.test(pageText, ''));
+                            });
+                            scannedPages += hits.length;
+                            if (hits.length) {
+                                let pdf = parsedPdfDocCache[cacheKey];
+                                if (!pdf) {
+                                    pdf = await pdfjsLib.getDocument({
+                                        data: new Uint8Array(await file.arrayBuffer()),
+                                        ...PDF_JS_CONFIG
+                                    }).promise;
+                                    parsedPdfDocCache[cacheKey] = pdf;
+                                }
+                                const PAGE_BATCH = 4;
+                                for (let pageIndex = 0; pageIndex < hits.length && !cancelScanRequested; pageIndex += PAGE_BATCH) {
+                                    const batch = hits.slice(pageIndex, pageIndex + PAGE_BATCH);
+                                    const pageBlocks = await Promise.all(batch.map(async hit => {
+                                        const page = await pdf.getPage(hit.pageNum);
+                                        try {
+                                            const content = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
+                                            return parsePdfSpecPage(content.items, models, file.name, hit.pageNum, cacheKey);
+                                        } finally {
+                                            page.cleanup();
+                                        }
+                                    }));
+                                    pageBlocks.forEach(found => blocks.push(...found));
+                                }
+                            }
+                        } catch (error) {
+                            failedFiles++;
+                            console.warn(`Không thể trích bảng PDF ${file.name}:`, error);
+                        } finally {
+                            completedFiles++;
+                            setProgress(`📄 Đang trích thư mục ${esc(selectedFolderLabel)} · ${completedFiles}/${selectedFiles.length} file · ${scannedPages} trang có model`);
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                    }
+                };
+                await Promise.all(Array.from(
+                    { length: Math.min(scanConcurrency(), selectedFiles.length) },
+                    () => processFile()
+                ));
+
+                window.latestPdfSpecBlocks = blocks;
+                if (!blocks.length) {
+                    window.latestPdfSpecRows = [];
+                    activePdfSpecRowIndex = -1;
+                    syncPreviewNavigator();
+                    tabExcel.innerHTML = `<p style="color:#f88; text-align:center; margin:20px;">${cancelScanRequested ? 'Đã dừng trước khi trích được bảng nào. ' : `Không có dòng nào khớp model ${esc(models.join(', '))} và các tiêu chí đang tích. `}Hãy kiểm tra tiêu chí đã chọn; nếu vẫn không có kết quả, catalogue có thể là PDF scan/ảnh hoặc dùng bố cục bảng khác.</p>`;
+                    statusBar.innerHTML = `${cancelScanRequested ? '⏹️ Đã dừng. ' : '❌ Không tìm thấy bảng spec phù hợp trong thư mục đang chọn.'}${failedFiles ? ` Lỗi đọc ${failedFiles} file; xem Console để biết chi tiết.` : ''}`;
+                    return;
+                }
+
+                const selectedCriteria = userSpecParams.filter(param => param.checked).map(param => param.name);
+                const resultRows = buildPdfSpecSummaryRows(blocks, models);
+                window.latestPdfSpecRows = resultRows;
+                activePdfSpecRowIndex = resultRows.length ? 0 : -1;
+                if (!resultRows.length) {
+                    window.latestPdfSpecRows = [];
+                    syncPreviewNavigator();
+                    tabExcel.innerHTML = `<p style="color:#f88;text-align:center;margin:20px;">Không trích được giá trị cho các model đã nhập (${esc(models.join(', '))}) theo tiêu chí đang chọn. Hãy kiểm tra model/tiêu chí hoặc mở PDF xem bố cục bảng.</p>`;
+                    statusBar.innerHTML = `❌ Không có giá trị phù hợp sau khi lọc.${failedFiles ? ` Lỗi đọc ${failedFiles} file; xem Console để biết chi tiết.` : ''}`;
+                    return;
+                }
+                let html = `<div style="padding:10px;"><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;"><div><b class="pdf-spec-result-count" style="color:#5bc0be;">Bảng tổng hợp · ${resultRows.length} dòng · ${models.length} model đã nhập</b><div style="font-size:11px;color:#aaa;margin-top:3px;">Đang lọc theo: ${esc(selectedCriteria.join(', '))} · Chỉ hiện model bạn nhập; đối chiếu với catalogue gốc.</div></div><button class="btn-card" style="background:#217346;color:white;font-weight:bold;" onclick="exportPdfSpecBlocks()">📥 Xuất Excel</button></div>`;
+                window.latestPdfSpecModels = [...models];
+                html += `<div style="overflow:auto;max-height:calc(100vh - 180px);"><table id="pdfSpecTable" style="border-collapse:collapse;width:max-content;min-width:100%;"><thead style="position:sticky;top:0;z-index:1;"><tr><th style="padding:6px;background:#334;color:white;border:1px solid #555;text-align:left;white-space:nowrap;">Thông số</th><th style="padding:6px;background:#334;color:white;border:1px solid #555;text-align:left;white-space:nowrap;">Loại dàn</th>${models.map(model => `<th style="padding:6px;background:#334;color:white;border:1px solid #555;text-align:left;white-space:nowrap;">${esc(model)}</th>`).join('')}<th style="padding:6px;background:#334;color:white;border:1px solid #555;text-align:left;white-space:nowrap;">Nguồn PDF / trang</th></tr></thead><tbody></tbody></table></div></div>`;
+                tabExcel.innerHTML = html;
+                renderPdfSpecResultRows();
+                syncPreviewNavigator();
+                statusBar.innerHTML = `${cancelScanRequested ? '⏹️ Đã dừng một phần. ' : '✅ Trích xong.'} ${blocks.length} bảng spec từ ${completedFiles}/${selectedFiles.length} PDF trong thư mục đang chọn; đã xét ${scannedPages} trang có model.${failedFiles ? ` Có ${failedFiles} file lỗi, xem Console để biết chi tiết.` : ''}`;
+            } finally {
+                isPdfScanning = false;
+            }
+        }
+
+        let activePdfSpecRowIndex = -1;
+
+        async function openPdfSpecRow(index) {
+            const row = (window.latestPdfSpecRows || [])[index];
+            if (!row) return alert('Không tìm thấy dòng kết quả cần mở.');
+            if (isPdfScanning) {
+                cancelScanRequested = true;
+                for (let wait = 0; isPdfScanning && wait < 50; wait++) await new Promise(resolve => setTimeout(resolve, 100));
+                if (isPdfScanning) return alert('Chưa thể mở nguồn vì thao tác PDF trước đó chưa dừng.');
+            }
+            activePdfSpecRowIndex = index;
+            syncPreviewNavigator();
+            const counter = document.getElementById('pdfSpecRowCounter');
+            if (counter) counter.textContent = `${index + 1} / ${window.latestPdfSpecRows.length}`;
+            document.querySelectorAll('#tabExcel tbody tr[id^="pdf-spec-row-"]').forEach(tr => tr.style.background = '');
+            const tableRow = document.getElementById(`pdf-spec-row-${index}`);
+            if (tableRow) {
+                tableRow.style.background = '#24445a';
+                tableRow.scrollIntoView({ block: 'nearest' });
+            }
+            const labelTerm = String(row.label || '').trim().toLowerCase();
+            const matchedModel = Object.keys(row.values || {}).find(model => row.values[model]);
+            const source = (matchedModel && row.sourceByModel && row.sourceByModel[matchedModel])
+                || (row.sources && row.sources[0])
+                || row;
+            if (!source.fileKey && !source.fileName) {
+                alert('Dòng này không có thông tin nguồn PDF để mở.');
+                return;
+            }
+            try {
+                activeHighlightTerms = [labelTerm, matchedModel].filter(Boolean).map(term => term.toLowerCase());
+                activePreviewHit = {
+                    type: 'pdfSpec',
+                    pageNum: source.pageNum,
+                    term: labelTerm,
+                    occurrenceIndex: 0
+                };
+                document.querySelectorAll('.pdf-highlight-current').forEach(element => element.classList.remove('pdf-highlight-current'));
+                await jumpToTargetPdf(source.fileKey || source.fileName, source.pageNum);
+                if (!currentPdfDoc) throw new Error(`Không tìm thấy hoặc không mở được PDF nguồn: ${source.fileName || source.fileKey}`);
+                await renderIndividualPage(source.pageNum);
+                scrollToPage(source.pageNum, true);
+                await refreshPageHighlights(source.pageNum);
+                const targetBox = applyCurrentRing(document.getElementById(`hl-layer-${source.pageNum}`), source.pageNum);
+                if (targetBox) scrollElementToCenter(targetBox, document.getElementById('pdfScrollContainer'));
+            } catch (error) {
+                console.error('Không mở được nguồn của dòng spec:', error);
+                alert(`Không thể mở vị trí thông số trong PDF: ${error.message || error}`);
+            }
+        }
+
+        function navigatePdfSpecRow(direction) {
+            const rows = window.latestPdfSpecRows || [];
+            if (!rows.length) return;
+            const next = activePdfSpecRowIndex < 0
+                ? (direction < 0 ? rows.length - 1 : 0)
+                : (activePdfSpecRowIndex + direction + rows.length) % rows.length;
+            openPdfSpecRow(next);
+        }
+
+        function exportPdfSpecBlocks() {
+            const blocks = window.latestPdfSpecBlocks || [];
+            if (!blocks.length) return alert('Chưa có bảng PDF nào để xuất.');
+            const resultRows = window.latestPdfSpecRows || [];
+            const models = window.latestPdfSpecModels || getActiveSearchModels();
+            if (!resultRows.length) return alert('Không còn dòng thông số nào để xuất Excel.');
+
+            const getColLetter = index => {
+                let result = '';
+                while (index >= 0) {
+                    result = String.fromCharCode((index % 26) + 65) + result;
+                    index = Math.floor(index / 26) - 1;
+                }
+                return result;
+            };
+            const escapeCell = value => String(value == null ? '' : value);
+            const border = {
+                top: { style: 'thin', color: { rgb: 'C7D6CE' } },
+                bottom: { style: 'thin', color: { rgb: 'C7D6CE' } },
+                left: { style: 'thin', color: { rgb: 'C7D6CE' } },
+                right: { style: 'thin', color: { rgb: 'C7D6CE' } }
+            };
+            const lastColumn = models.length + 1;
+            const lastColumnLetter = getColLetter(lastColumn);
+            const ws = {};
+            ws['!merges'] = [];
+            ws['A1'] = {
+                v: 'BẢNG SO SÁNH THÔNG SỐ KỸ THUẬT (SPEC)', t: 's',
+                s: { font: { bold: true, sz: 16, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '107C41' } }, alignment: { horizontal: 'center', vertical: 'center' } }
+            };
+            ws['!merges'].push({ s: { r: 0, c: 0 }, e: { r: 0, c: lastColumn } });
+
+            const sourceFiles = [...new Set(resultRows.flatMap(row =>
+                (row.sources && row.sources.length ? row.sources : [row]).map(source => source.fileName).filter(Boolean)
+            ))];
+            ws['A2'] = {
+                v: `Nguồn dữ liệu: ${sourceFiles.join(' | ')}`, t: 's',
+                s: { font: { italic: true, sz: 9, color: { rgb: '666666' } }, alignment: { vertical: 'center', wrapText: true } }
+            };
+            ws['!merges'].push({ s: { r: 1, c: 0 }, e: { r: 1, c: lastColumn } });
+
+            const headerStyle = {
+                font: { bold: true, sz: 11, color: { rgb: 'FFFFFF' } },
+                fill: { fgColor: { rgb: '1E4620' } },
+                border,
+                alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+            };
+            const labelHeaderStyle = {
+                ...headerStyle,
+                fill: { fgColor: { rgb: '217346' } },
+                alignment: { horizontal: 'left', vertical: 'center', wrapText: true }
+            };
+            ['THÔNG SỐ KỸ THUẬT', ...models, 'NGUỒN PDF / TRANG'].forEach((value, column) => {
+                const address = `${getColLetter(column)}4`;
+                ws[address] = { v: escapeCell(value), t: 's', s: column === 0 ? labelHeaderStyle : headerStyle };
+            });
+
+            const sideStyles = {
+                FCU: { fill: 'DDEBF7', font: '1F4E78', title: '❄️ DÀN LẠNH (FCU)' },
+                CDU: { fill: 'FCE4D6', font: '843C0C', title: '🔥 DÀN NÓNG (CDU)' },
+                UNK: { fill: 'EDEDED', font: '404040', title: '❔ CHƯA RÕ LOẠI DÀN' }
+            };
+            const dataGroups = ['FCU', 'CDU', 'UNK'];
+            let currentRow = 5;
+            let stripe = 0;
+            for (const side of dataGroups) {
+                const sideRows = resultRows.filter(row => (row.side || 'UNK') === side);
+                if (!sideRows.length) continue;
+
+                const group = sideStyles[side];
+                const groupStyle = {
+                    font: { bold: true, sz: 11, color: { rgb: group.font } },
+                    fill: { fgColor: { rgb: group.fill } },
+                    border,
+                    alignment: { vertical: 'center' }
+                };
+                const groupAddress = `A${currentRow}`;
+                ws[groupAddress] = { v: group.title, t: 's', s: groupStyle };
+                for (let column = 1; column <= lastColumn; column++) {
+                    ws[`${getColLetter(column)}${currentRow}`] = { v: '', t: 's', s: groupStyle };
+                }
+                ws['!merges'].push({ s: { r: currentRow - 1, c: 0 }, e: { r: currentRow - 1, c: lastColumn } });
+                currentRow++;
+
+                for (const row of sideRows) {
+                    const background = stripe++ % 2 === 0 ? 'F4F8F5' : 'FFFFFF';
+                    const labelStyle = {
+                        font: { bold: true, sz: 10, color: { rgb: '263C2F' } },
+                        fill: { fgColor: { rgb: background } },
+                        border,
+                        alignment: { vertical: 'center', wrapText: true }
+                    };
+                    const valueStyle = {
+                        font: { bold: true, sz: 10, color: { rgb: '002060' } },
+                        fill: { fgColor: { rgb: background } },
+                        border,
+                        alignment: { horizontal: 'center', vertical: 'center', wrapText: true }
+                    };
+                    ws[`A${currentRow}`] = { v: escapeCell(row.label), t: 's', s: labelStyle };
+                    models.forEach((model, modelIndex) => {
+                        ws[`${getColLetter(modelIndex + 1)}${currentRow}`] = {
+                            v: escapeCell(row.values[model] || '—'), t: 's', s: valueStyle
+                        };
+                    });
+                    const citations = [];
+                    const seenCitations = new Set();
+                    models.forEach(model => {
+                        const source = row.sourceByModel?.[model] || (row.sources && row.sources[0]) || row;
+                        if (!source.fileName && !source.fileKey) return;
+                        const citation = `${model}: ${source.fileName || source.fileKey} · tr.${source.pageNum || '?'}`;
+                        if (!seenCitations.has(citation)) {
+                            seenCitations.add(citation);
+                            citations.push(citation);
+                        }
+                    });
+                    ws[`${lastColumnLetter}${currentRow}`] = {
+                        v: citations.join('\n'), t: 's',
+                        s: { font: { sz: 9, color: { rgb: '666666' } }, fill: { fgColor: { rgb: background } }, border, alignment: { vertical: 'center', wrapText: true } }
+                    };
+                    currentRow++;
+                }
+            }
+
+            ws['!ref'] = `A1:${lastColumnLetter}${currentRow - 1}`;
+            ws['!cols'] = [
+                { wch: 42 },
+                ...models.map(() => ({ wch: 22 })),
+                { wch: 48 }
+            ];
+            ws['!rows'] = [{ hpt: 30 }, { hpt: 24 }, { hpt: 8 }, { hpt: 28 }];
+            ws['!freeze'] = { xSplit: 1, ySplit: 4 };
+            ws['!pageSetup'] = { orientation: 'landscape', fitToWidth: 1, fitToHeight: 0, paperSize: 9 };
+            ws['!margins'] = { left: 0.3, right: 0.3, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 };
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'PDF_Spec');
+            XLSX.writeFile(wb, 'Trich_Xuat_Spec_PDF.xlsx');
         }
 
         /* ================= 2. XUẤT RA FILE EXCEL (DÀN NGANG) ================= */
@@ -2946,9 +3602,18 @@
         /* ================= ĐIỀU HƯỚNG KẾT QUẢ & XEM PDF ================= */
         function syncPreviewNavigator() {
             const count = previewHits.length;
-            document.getElementById('previewNavigator').style.display = count ? 'flex' : 'none';
+            const specRows = window.latestPdfSpecRows || [];
+            const specActive = specRows.length > 0 && document.getElementById('tabExcel').classList.contains('active');
+            const previewNavigator = document.getElementById('previewNavigator');
+            const specNavigator = document.getElementById('pdfSpecNavigator');
+            previewNavigator.style.display = count && !specActive ? 'flex' : 'none';
+            specNavigator.style.display = specActive ? 'flex' : 'none';
+            document.querySelector('.pdf-toolbar').classList.toggle('has-spec-nav', specActive);
             document.getElementById('previewHitCounter').textContent = count ? `${activePreviewHitIndex + 1} / ${count}` : '0 / 0';
             document.getElementById('previewPrevBtn').disabled = document.getElementById('previewNextBtn').disabled = count === 0;
+            document.getElementById('pdfSpecToolbarCounter').textContent = specRows.length
+                ? `${Math.max(activePdfSpecRowIndex, 0) + 1} / ${specRows.length}` : '0 / 0';
+            document.getElementById('pdfSpecPrevBtn').disabled = document.getElementById('pdfSpecNextBtn').disabled = specRows.length === 0;
         }
 
         let isJumpingToPage = false;
@@ -3201,7 +3866,7 @@
             const keyOf = f => f.webkitRelativePath || f.name;
             const file = filteredPdfFiles.find(f => keyOf(f) === fileName) || allMasterFiles.find(f => keyOf(f) === fileName)
                       || filteredPdfFiles.find(f => f.name === fileName) || allMasterFiles.find(f => f.name === fileName); 
-            if (!file) return;
+            if (!file) throw new Error(`Không tìm thấy file PDF "${fileName}" trong các thư mục đã nạp.`);
             document.getElementById('pdfControls').style.display = 'flex';
             document.getElementById('officeControls').style.display = 'none';
             const cacheKey = file.webkitRelativePath || file.name;
