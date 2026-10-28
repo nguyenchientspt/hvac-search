@@ -1518,6 +1518,7 @@
                     const pageTexts = await getPdfTextPages(file);
                     if (cancelScanRequested) break;
 
+                    // Kiểm tra file có chứa Model không
                     let fileBelongsToModel = modelMatchers.some(mm => mm.test('', file.name));
                     let matchedModelName = activeModels[0] || '';
 
@@ -1551,84 +1552,81 @@
                         const hasQuery = matchedTerms.length > 0;
                         const hasExactQuery = cleanQuery && pageData.lowerText.includes(cleanQuery);
 
-                        let isMatched = false;
-                        if (queryTerms.length > 0 && hasModelFilter) {
-                            isMatched = isModelOnPage || hasQuery;
-                        } else if (hasModelFilter) {
-                            isMatched = isModelOnPage;
+                        // 🌟 QUY TẮC BẮT BUỘC:
+                        // 1. Nếu có nhập Từ khóa: BẮT BUỘC TRANG PHẢI CÓ TỪ KHÓA! Không có thì bỏ qua ngay!
+                        // 2. Nếu chỉ tìm Model: Trang bắt buộc phải có Model!
+                        if (queryTerms.length > 0) {
+                            if (!hasQuery) continue;
                         } else {
-                            isMatched = hasQuery;
+                            if (!isModelOnPage) continue;
                         }
-
-                        if (!isMatched) continue;
 
                         const modelDisp = matchedModelOnThisPage || matchedModelName;
-
-                        // Tìm tất cả các điểm xuất hiện trên trang
-                        const foundHits = [];
-                        if (isModelOnPage) {
-                            const mClean = modelDisp.toLowerCase();
-                            let from = 0, idx;
-                            while ((idx = pageData.lowerText.indexOf(mClean, from)) !== -1) {
-                                foundHits.push({ pos: idx, term: mClean, isModel: true });
-                                from = idx + Math.max(1, mClean.length);
-                            }
-                        }
-                        if (hasQuery) {
-                            const tList = hasExactQuery ? [cleanQuery] : matchedTerms;
-                            for (const t of tList) {
-                                let from = 0, idx;
-                                while ((idx = pageData.lowerText.indexOf(t, from)) !== -1) {
-                                    foundHits.push({ pos: idx, term: t, isModel: false });
-                                    from = idx + Math.max(1, t.length);
-                                }
-                            }
-                        }
-
-                        foundHits.sort((a, b) => a.pos - b.pos);
-                        if (!foundHits.length) {
-                            foundHits.push({ pos: 0, term: cleanQuery || modelDisp.toLowerCase(), isModel: isModelOnPage });
-                        }
 
                         let badgeClass = '';
                         let matchNote = '';
                         let score = 0;
 
-                        if (isModelOnPage && (hasExactQuery || hasQuery)) {
+                        if (isModelOnPage && hasQuery) {
                             score = 200;
                             badgeClass = 'badge-both-exact';
                             matchNote = `✨ Có cả Model (${modelDisp}) & Từ khóa`;
-                        } else if (isModelOnPage) {
-                            score = 100;
-                            badgeClass = 'badge-model';
-                            matchNote = `📌 Khớp Model: ${modelDisp}`;
                         } else if (hasExactQuery) {
-                            score = 100;
+                            score = 150;
                             badgeClass = 'badge-exact';
                             matchNote = `🎯 Khớp từ khóa: "${cleanQuery}"`;
-                        } else {
-                            score = 80;
+                        } else if (hasQuery) {
+                            score = 100;
                             badgeClass = 'badge-query';
                             matchNote = `📄 Khớp từ khóa: "${matchedTerms[0]}"`;
+                        } else {
+                            score = 80;
+                            badgeClass = 'badge-model';
+                            matchNote = `📌 Khớp Model: ${modelDisp}`;
                         }
 
-                        foundHits.forEach(fh => {
-                            let startPos = Math.max(0, fh.pos - 60);
-                            let snippet = pageData.fullText.substring(startPos, startPos + 260).replace(/\s+/g, ' ');
-                            if (!snippet.trim()) snippet = `Trang ${pageData.pageNum}: Khớp kết quả tìm kiếm`;
+                        // 🌟 CẮT SNIPPET LUÔN LUÔN XOAY QUANH TỪ KHÓA ĐỂ BẢO ĐẢM TRÊN THẺ PHẢI CÓ TỪ KHÓA
+                        let focusPos = -1;
+                        let focusTerm = '';
+                        if (hasExactQuery) {
+                            focusPos = pageData.lowerText.indexOf(cleanQuery);
+                            focusTerm = cleanQuery;
+                        } else if (matchedTerms.length > 0) {
+                            focusPos = pageData.lowerText.indexOf(matchedTerms[0]);
+                            focusTerm = matchedTerms[0];
+                        } else if (isModelOnPage) {
+                            focusPos = pageData.lowerText.indexOf(modelDisp.toLowerCase());
+                            focusTerm = modelDisp.toLowerCase();
+                        }
+                        if (focusPos < 0) focusPos = 0;
 
-                            rawMatches.push({
-                                file,
-                                pageNum: pageData.pageNum,
-                                fullText: pageData.fullText,
-                                lowerText: pageData.lowerText,
-                                snippet: snippet,
-                                targetTerm: fh.term,
-                                targetPos: fh.pos,
-                                score: score,
-                                badgeClass: badgeClass,
-                                matchNote: matchNote
-                            });
+                        let startPos = Math.max(0, focusPos - 60);
+                        let snippet = pageData.fullText.substring(startPos, startPos + 260).replace(/\s+/g, ' ');
+                        if (!snippet.trim()) snippet = `Trang ${pageData.pageNum}: Khớp kết quả tìm kiếm`;
+
+                        // Đếm tổng số điểm xuất hiện trên trang này
+                        let countOnPage = 0;
+                        if (focusTerm) {
+                            let f = 0, idx;
+                            while ((idx = pageData.lowerText.indexOf(focusTerm, f)) !== -1) {
+                                countOnPage++;
+                                f = idx + Math.max(1, focusTerm.length);
+                            }
+                        }
+
+                        // 🌟 MỖI TRANG CHỈ ĐẨY ĐÚNG 1 KẾT QUẢ DUY NHẤT VÀO DANH SÁCH
+                        rawMatches.push({
+                            file,
+                            pageNum: pageData.pageNum,
+                            fullText: pageData.fullText,
+                            lowerText: pageData.lowerText,
+                            snippet: snippet,
+                            targetTerm: focusTerm,
+                            targetPos: focusPos,
+                            countOnPage: countOnPage,
+                            score: score,
+                            badgeClass: badgeClass,
+                            matchNote: matchNote
                         });
                     }
                 } catch (e) {}
@@ -1636,55 +1634,49 @@
 
             isPdfScanning = false;
 
-            // 🌟 BỘ LỌC TRIỆT TIÊU TRÙNG LẶP:
-            // Cùng 1 trang: nếu 2 thẻ có đoạn snippet giống nhau HOẶC nằm cách nhau dưới 250 ký tự -> CHỈ GIỮ 1 THẺ DUY NHẤT!
-            const uniqueMatches = [];
-            for (const m of rawMatches) {
-                const isDup = uniqueMatches.some(existing => {
-                    if (existing.file.name !== m.file.name) return false;
-                    if (existing.pageNum !== m.pageNum) return false;
-
-                    // 1. Nếu vị trí quá gần nhau (dưới 250 ký tự trong cùng 1 bảng/đoạn) -> Trùng lặp
-                    if (Math.abs(existing.targetPos - m.targetPos) < 250) return true;
-
-                    // 2. Nếu đoạn văn trích dẫn (snippet) giống hệt nhau -> Trùng lặp
-                    const s1 = existing.snippet.trim().toLowerCase();
-                    const s2 = m.snippet.trim().toLowerCase();
-                    if (s1 === s2 || s1.substring(0, 80) === s2.substring(0, 80)) return true;
-
-                    return false;
-                });
-
-                if (!isDup) {
-                    uniqueMatches.push(m);
+            // Lọc bảo đảm không bao giờ có 2 thẻ cùng số trang trong 1 file
+            const uniquePageMap = new Map();
+            rawMatches.forEach(m => {
+                const key = `${m.file.name}_${m.pageNum}`;
+                if (!uniquePageMap.has(key) || uniquePageMap.get(key).score < m.score) {
+                    uniquePageMap.set(key, m);
                 }
-            }
+            });
+            let finalMatches = Array.from(uniquePageMap.values());
 
             // Sắp xếp tự nhiên theo điểm và số trang
-            uniqueMatches.sort((a, b) => (b.score - a.score) || (a.pageNum - b.pageNum));
+            finalMatches.sort((a, b) => (b.score - a.score) || (a.pageNum - b.pageNum));
 
-            const displayMatches = uniqueMatches.slice(0, 100);
+            const displayMatches = finalMatches.slice(0, 100);
             document.getElementById('badgePdf').innerText = `(${displayMatches.length})`;
 
             displayMatches.forEach(item => {
                 const targetHitIndex = previewHits.length;
                 const termLower = item.targetTerm.toLowerCase();
 
-                let occurrenceIdx = 0;
-                let fromPos = 0, foundP;
-                while ((foundP = item.lowerText.indexOf(termLower, fromPos)) !== -1) {
-                    if (foundP >= item.targetPos - 20) break;
-                    occurrenceIdx++;
-                    fromPos = foundP + Math.max(1, termLower.length);
+                let from = 0, foundP, occ = 0;
+                if (termLower) {
+                    while ((foundP = item.lowerText.indexOf(termLower, from)) !== -1) {
+                        previewHits.push({
+                            fileName: item.file.name,
+                            pageNum: item.pageNum,
+                            term: termLower,
+                            occurrenceIndex: occ
+                        });
+                        occ++;
+                        from = foundP + Math.max(1, termLower.length);
+                    }
+                }
+                if (occ === 0) {
+                    previewHits.push({
+                        fileName: item.file.name,
+                        pageNum: item.pageNum,
+                        term: termLower || 'hit',
+                        occurrenceIndex: 0
+                    });
                 }
 
-                previewHits.push({
-                    fileName: item.file.name,
-                    pageNum: item.pageNum,
-                    term: termLower,
-                    occurrenceIndex: occurrenceIdx
-                });
-
+                // Tô màu vàng trên snippet
                 const hlRegex = new RegExp(`(${activeHighlightTerms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
                 const highlightSnippet = item.snippet.replace(hlRegex, m => `<mark>${m}</mark>`);
 
@@ -1696,7 +1688,7 @@
                 card.innerHTML = `
                     <div class="card-header">
                         <span class="card-file">📄 ${item.file.name}</span>
-                        <span class="card-page">Trang ${item.pageNum}</span>
+                        <span class="card-page">Trang ${item.pageNum}${item.countOnPage > 1 ? ` (${item.countOnPage} vị trí)` : ''}</span>
                     </div>
                     <div class="card-note-badge ${item.badgeClass}">${item.matchNote}</div>
                     <div class="card-snippet">${highlightSnippet}</div>
@@ -1709,7 +1701,7 @@
             if (displayMatches.length === 0) {
                 tabPdf.innerHTML = hasModelFilter 
                     ? `<div style="text-align:center; margin-top:30px; color:#ff9800; line-height:1.6;">
-                        ❌ Không tìm thấy model <b>"${activeModels.join(', ')}"</b> trong các tài liệu PDF đã nạp.
+                        ❌ Không tìm thấy trang nào chứa từ khóa "${queryPdf}" thuộc model <b>"${activeModels.join(', ')}"</b>.
                        </div>`
                     : `<p style="text-align:center; margin-top:20px; line-height:1.6; color:#ddd;">❌ Không tìm thấy kết quả phù hợp cho từ khóa "${queryPdf}".</p>`;
             }
