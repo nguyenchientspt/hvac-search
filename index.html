@@ -383,6 +383,7 @@
         let globalRotation = 0; let singlePageRotations = {};
         let activeHighlightTerms = []; let activePreviewHit = null; let previewHits = []; let activePreviewHitIndex = -1;
         let renderTasks = {}; let pdfTextCache = {}; let parsedPdfDocCache = {};
+        let activeModels = []; let scanSessionId = 0; let jumpToken = 0; let renderEpoch = 0;
         let excelDataSheets = []; let wordDataFiles = [];
 
         /* ================= BỘ QUẢN LÝ DANH SÁCH THÔNG SỐ ================= */
@@ -615,34 +616,34 @@
             return typedCode.length >= 2 && cellCode.includes(typedCode);
         }
 
-        function buildModelMatchers(rawModel) {
+       function buildModelMatchers(rawModel) {
             if (!rawModel) return null;
             const clean = rawModel.trim().toLowerCase();
             const compact = clean.replace(/[^a-z0-9]/g, '');
             if (!compact) return null;
 
             const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const SEP = '[\\s\\-_]*';
+            const SEP = '[\\s\\-_()\\/]{0,3}';
 
-            // Giữ nguyên vẹn 100% tất cả các ký tự bạn nhập, không cắt xén, không đoán mò (RZA71DV1 bắt buộc phải đủ rza-71-dv1)
+            // Tách cụm: RXQ62B -> "rxq", "62", "b"
             const chunks = clean.match(/[a-z]+|[0-9]+/gi) || [clean];
-            const regexPattern = '(?:^|[^a-z0-9])' + chunks.map(c => esc(c)).join(SEP) + '(?:[^a-z0-9]|$)';
+
+            // 🌟 REGEX BẮT BUỘC CÁC CHỮ CỦA MODEL PHẢI ĐỨNG LIỀN SÁT NHAU
+            // Cho phép đuôi model đời sau (ví dụ tìm RXQ62B sẽ khớp RXQ62BYM, RXQ62B)
+            const regexPattern = '(?:^|[^a-z0-9])' + chunks.map(c => esc(c)).join(SEP) + '[\\)]*([a-z0-9]{0,4})(?=[^a-z0-9]|$)';
             const exactRegex = new RegExp(regexPattern, 'i');
 
             return {
                 raw: rawModel.trim(),
                 clean: clean,
                 compact: compact,
+                regex: exactRegex,
                 test(text, fileName = '') {
-                    if (fileName) {
-                        const normFileName = fileName.toLowerCase().replace(/[^a-z0-9]/g, '');
-                        if (normFileName.includes(compact)) return true;
-                        if (exactRegex.test(fileName)) return true;
-                    }
+                    if (fileName && exactRegex.test(fileName)) return true;
                     if (!text) return false;
-                    if (exactRegex.test(text)) return true;
-                    const normText = text.toLowerCase().replace(/[^a-z0-9]/g, '');
-                    return normText.includes(compact);
+                    // 🌟 TUYỆT ĐỐI CHỈ DÙNG REGEX KHỚP CHÍNH XÁC MÃ MODEL ĐỨNG LIỀN
+                    // KHÔNG BAO GIỜ XÓA KHOẢNG TRẮNG CẢ TRANG ĐỂ TRÁNH DÍNH CHỮ GIẢ MẠO!
+                    return exactRegex.test(text);
                 }
             };
         }
@@ -1236,23 +1237,26 @@
             if (statusBar) statusBar.innerHTML = '⏹️ Đang dừng quét...';
         }
 
-        async function getPdfTextPages(file, onProgress) {
-            const cacheKey = `${file.name}_${file.size || 0}_${file.lastModified || 0}`;
-            if (pdfTextCache[cacheKey]) return pdfTextCache[cacheKey];
+        async function getPdfTextPages(file, onProgress, onBatch) {
+            // 🌟 Đổi tên cacheKey để ép hệ thống xóa bỏ bộ nhớ đệm (Cache) bị nhiễm "chữ ma" của lần trước
+            const cacheKey = `${file.name}_${file.size || 0}_${file.lastModified || 0}_v3_CleanGhost`;
+            if (pdfTextCache[cacheKey]) { if (onBatch) onBatch(pdfTextCache[cacheKey]); return pdfTextCache[cacheKey]; }
 
             const cachedFromDb = await getCachedPdfText(cacheKey);
             if (cachedFromDb && Array.isArray(cachedFromDb) && cachedFromDb.length > 0) {
                 pdfTextCache[cacheKey] = cachedFromDb;
+                if (onBatch) onBatch(cachedFromDb);
                 return cachedFromDb;
             }
 
-            const pdfDocKey = file.webkitRelativePath || file.name;
+            // 🌟 Dùng tài liệu RIÊNG cho việc quét (không dùng chung với khung xem) -> hết lỗi trắng trang
             const arrayBuffer = await file.arrayBuffer();
-            const pdf = parsedPdfDocCache[pdfDocKey] || await pdfjsLib.getDocument({
+            const loadingTask = pdfjsLib.getDocument({
                 data: new Uint8Array(arrayBuffer),
                 ...PDF_JS_CONFIG
-            }).promise;
-            parsedPdfDocCache[pdfDocKey] = pdf;
+            });
+            const pdf = await loadingTask.promise;
+            try {
 
             const pageTexts = new Array(pdf.numPages);
             const BATCH_SIZE = 12;
@@ -1266,12 +1270,31 @@
                         pdf.getPage(pageNum).then(async (page) => {
                             try {
                                 const content = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
-                                const fullText = (content.items || []).map(item => item.str || '').join(' ');
+                                const viewport = page.getViewport({ scale: 1.0 });
+                                
+                                // 🌟 BỘ LỌC CHỮ MA (GHOST TEXT FILTER): 
+                                // Quét tọa độ của từng chữ, nếu chữ nào bị giấu ngoài lề giấy -> XÓA SẠCH!
+                                const validItems = (content.items || []).filter(item => {
+                                    if (!item.str || item.str.trim() === '') return true; // Giữ lại khoảng trắng
+                                    
+                                    const x = item.transform[4];
+                                    const y = item.transform[5];
+                                    const scaleX = item.transform[0];
+                                    const scaleY = item.transform[3];
+                                    
+                                    // 1. Loại bỏ chữ bị bóp tỷ lệ tàng hình (scale gần = 0)
+                                    if (Math.abs(scaleX) < 0.01 && Math.abs(scaleY) < 0.01) return false;
+                                    
+                                    // 2. Loại bỏ chữ bị giấu tít ra ngoài mép tờ giấy (Tọa độ X âm, hoặc X lớn hơn chiều rộng giấy)
+                                    if (x < -150 || y < -150 || x > viewport.width + 150 || y > viewport.height + 150) return false;
+                                    
+                                    return true;
+                                });
+
+                                const fullText = validItems.map(item => item.str || '').join(' ');
                                 const lowerText = fullText.toLowerCase();
-                                page.cleanup();
                                 return { pageNum, fullText, lowerText };
                             } catch (err) {
-                                try { page.cleanup(); } catch(e){}
                                 return { pageNum, fullText: '', lowerText: '' };
                             }
                         })
@@ -1279,6 +1302,7 @@
                 }
                 const batchResults = await Promise.all(batchPromises);
                 batchResults.forEach(res => { pageTexts[res.pageNum - 1] = res; });
+                if (onBatch) onBatch(batchResults);   // 🌟 trả kết quả ngay từng đợt, không chờ quét hết file
                 if (onProgress) onProgress(end, pdf.numPages);
                 await new Promise(r => setTimeout(r, 10));
             }
@@ -1287,6 +1311,9 @@
             pdfTextCache[cacheKey] = pageTexts;
             setCachedPdfText(cacheKey, pageTexts);
             return pageTexts;
+            } finally {
+                try { loadingTask.destroy(); } catch (e) {}
+            }
         }
 
         /* ================= QUẢN LÝ DANH SÁCH MODEL TÌM KIẾM ================= */
@@ -1448,8 +1475,8 @@
             }
         }
 
-        async function searchPdfOnlyCore() {
-            const activeModels = getActiveSearchModels();
+      async function searchPdfOnlyCore() {
+            activeModels = getActiveSearchModels();
             const queryPdf = document.getElementById('queryInput').value.trim();
             const tabPdf = document.getElementById('tabPdf');
             const statusBar = document.getElementById('searchStatusBar');
@@ -1461,11 +1488,18 @@
 
             recordSearchHistory(activeModels, queryPdf);
 
+            // Nếu đang quét lần trước -> dừng lại rồi mới bắt đầu lần mới
+            if (isPdfScanning) { cancelScanRequested = true; await new Promise(r => setTimeout(r, 300)); }
+            const session = ++scanSessionId;
+
             switchTab('tabPdf');
             document.getElementById('pdfControls').style.display = 'flex';
             document.getElementById('officeControls').style.display = 'none';
             tabPdf.innerHTML = '';
-            previewHits = []; activePreviewHitIndex = -1; activePreviewHit = null; syncPreviewNavigator();
+            previewHits = []; 
+            activePreviewHitIndex = -1; 
+            activePreviewHit = null; 
+            syncPreviewNavigator();
             document.getElementById('badgePdf').innerText = '(0)';
 
             if (filteredPdfFiles.length === 0) {
@@ -1478,12 +1512,13 @@
             statusBar.style.display = 'flex';
             statusBar.style.justifyContent = 'space-between';
             statusBar.style.alignItems = 'center';
-            statusBar.innerHTML = `<span>⚡ Đang chuẩn bị quét tài liệu...</span>`;
+            statusBar.innerHTML = `<span>⚡ Đang quét chính xác Model và Từ khóa...</span>`;
 
             const hasModelFilter = activeModels.length > 0;
             const modelMatchers = activeModels.map(m => buildModelMatchers(m)).filter(Boolean);
             const queryTerms = await expandBilingualTermsFast(queryPdf);
-            const cleanQuery = queryPdf.toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+            const exactFullQuery = queryPdf.toLowerCase().trim();
+            const cleanQuery = exactFullQuery.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
 
             const modelHighlightTerms = activeModels.flatMap(m => [
                 m.trim().toLowerCase(),
@@ -1492,7 +1527,8 @@
 
             activeHighlightTerms = [...new Set([
                 ...modelHighlightTerms,
-                ...queryTerms
+                ...queryTerms,
+                ...(cleanQuery ? [cleanQuery] : [])
             ])].filter(t => t && t.length >= 2 && !/^\d+$/.test(t));
 
             activeHighlightTerms.sort((a, b) => b.length - a.length);
@@ -1503,188 +1539,181 @@
                 return bHas - aHas;
             });
 
-            isPdfScanning = true; cancelScanRequested = false;
+            isPdfScanning = true; 
+            cancelScanRequested = false;
 
-            let rawMatches = [];
+            const seenPages = new Set();
+            const MAX_CARDS = 100;
+            let cardCount = 0;
+            let autoOpened = false;
 
-            for (let i = 0; i < sortedFiles.length; i++) {
-                if (cancelScanRequested) break;
-                const file = sortedFiles[i];
+            // ---- Kiểm tra 1 trang có khớp không (trả về null nếu không) ----
+            const matchPage = (file, pageData) => {
+                if (!pageData || !pageData.lowerText) return null;
+        // 1. Kiểm tra Model xuất hiện trên trang này
+        const matchedModelOnThisPage = activeModels.find(m => {
+            const mm = buildModelMatchers(m);
+            return mm && mm.test(pageData.lowerText, '');
+        });
+        const isModelOnPage = !!matchedModelOnThisPage;
 
-                statusBar.innerHTML = `<span>⚡ Đang quét PDF (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b></span>
-                    <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+        // 2. Kiểm tra Từ khóa xuất hiện trên trang này
+        const hasExactFull = (exactFullQuery && pageData.lowerText.includes(exactFullQuery)) || 
+                             (cleanQuery && pageData.lowerText.includes(cleanQuery));
+        const matchedTerms = queryTerms.filter(t => pageData.lowerText.includes(t));
+        const hasQuery = matchedTerms.length > 0;
 
-                try {
-                    const pageTexts = await getPdfTextPages(file);
-                    if (cancelScanRequested) break;
+        // 🌟 KHÓA CHẶN 1: NẾU ĐÃ NHẬP CẢ MODEL VÀ TỪ KHÓA
+        // Trang BẮT BUỘC PHẢI CÓ CẢ HAI! Thiếu 1 trong 2 (như trang 20, 29, 34) BỊ LOẠI BỎ NGAY!
+        if (hasModelFilter && queryTerms.length > 0) {
+            if (!isModelOnPage || (!hasQuery && !hasExactFull)) return null;
+        } else if (hasModelFilter) {
+            if (!isModelOnPage) return null;
+        } else {
+            if (!hasQuery && !hasExactFull) return null;
+        }
 
-                    // Kiểm tra file có chứa Model không
-                    let fileBelongsToModel = modelMatchers.some(mm => mm.test('', file.name));
-                    let matchedModelName = activeModels[0] || '';
+        const modelDisp = matchedModelOnThisPage || (activeModels[0] || '');
 
-                    if (!fileBelongsToModel && hasModelFilter) {
-                        for (const pData of pageTexts) {
-                            if (!pData || !pData.lowerText) continue;
-                            const m = activeModels.find(mod => {
-                                const mm = buildModelMatchers(mod);
-                                return mm && mm.test(pData.lowerText, '');
-                            });
-                            if (m) {
-                                fileBelongsToModel = true;
-                                matchedModelName = m;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (hasModelFilter && !fileBelongsToModel) continue;
-
-                    for (const pageData of pageTexts) {
-                        if (!pageData || !pageData.lowerText) continue;
-
-                        const matchedModelOnThisPage = activeModels.find(m => {
-                            const mm = buildModelMatchers(m);
-                            return mm && mm.test(pageData.lowerText, '');
-                        });
-                        const isModelOnPage = !!matchedModelOnThisPage;
-
-                        const matchedTerms = queryTerms.filter(t => pageData.lowerText.includes(t));
-                        const hasQuery = matchedTerms.length > 0;
-                        const hasExactQuery = cleanQuery && pageData.lowerText.includes(cleanQuery);
-
-                        // 🌟 QUY TẮC BẮT BUỘC:
-                        // 1. Nếu có nhập Từ khóa: BẮT BUỘC TRANG PHẢI CÓ TỪ KHÓA! Không có thì bỏ qua ngay!
-                        // 2. Nếu chỉ tìm Model: Trang bắt buộc phải có Model!
-                        if (queryTerms.length > 0) {
-                            if (!hasQuery) continue;
-                        } else {
-                            if (!isModelOnPage) continue;
-                        }
-
-                        const modelDisp = matchedModelOnThisPage || matchedModelName;
-
-                        let badgeClass = '';
-                        let matchNote = '';
-                        let score = 0;
-
-                        if (isModelOnPage && hasQuery) {
-                            score = 200;
-                            badgeClass = 'badge-both-exact';
-                            matchNote = `✨ Có cả Model (${modelDisp}) & Từ khóa`;
-                        } else if (hasExactQuery) {
-                            score = 150;
-                            badgeClass = 'badge-exact';
-                            matchNote = `🎯 Khớp từ khóa: "${cleanQuery}"`;
-                        } else if (hasQuery) {
-                            score = 100;
-                            badgeClass = 'badge-query';
-                            matchNote = `📄 Khớp từ khóa: "${matchedTerms[0]}"`;
-                        } else {
-                            score = 80;
-                            badgeClass = 'badge-model';
-                            matchNote = `📌 Khớp Model: ${modelDisp}`;
-                        }
-
-                        // 🌟 CẮT SNIPPET LUÔN LUÔN XOAY QUANH TỪ KHÓA ĐỂ BẢO ĐẢM TRÊN THẺ PHẢI CÓ TỪ KHÓA
-                        let focusPos = -1;
-                        let focusTerm = '';
-                        if (hasExactQuery) {
-                            focusPos = pageData.lowerText.indexOf(cleanQuery);
-                            focusTerm = cleanQuery;
-                        } else if (matchedTerms.length > 0) {
-                            focusPos = pageData.lowerText.indexOf(matchedTerms[0]);
-                            focusTerm = matchedTerms[0];
-                        } else if (isModelOnPage) {
-                            focusPos = pageData.lowerText.indexOf(modelDisp.toLowerCase());
-                            focusTerm = modelDisp.toLowerCase();
-                        }
-                        if (focusPos < 0) focusPos = 0;
-
-                        let startPos = Math.max(0, focusPos - 60);
-                        let snippet = pageData.fullText.substring(startPos, startPos + 260).replace(/\s+/g, ' ');
-                        if (!snippet.trim()) snippet = `Trang ${pageData.pageNum}: Khớp kết quả tìm kiếm`;
-
-                        // Đếm tổng số điểm xuất hiện trên trang này
-                        let countOnPage = 0;
-                        if (focusTerm) {
-                            let f = 0, idx;
-                            while ((idx = pageData.lowerText.indexOf(focusTerm, f)) !== -1) {
-                                countOnPage++;
-                                f = idx + Math.max(1, focusTerm.length);
-                            }
-                        }
-
-                        // 🌟 MỖI TRANG CHỈ ĐẨY ĐÚNG 1 KẾT QUẢ DUY NHẤT VÀO DANH SÁCH
-                        rawMatches.push({
-                            file,
-                            pageNum: pageData.pageNum,
-                            fullText: pageData.fullText,
-                            lowerText: pageData.lowerText,
-                            snippet: snippet,
-                            targetTerm: focusTerm,
-                            targetPos: focusPos,
-                            countOnPage: countOnPage,
-                            score: score,
-                            badgeClass: badgeClass,
-                            matchNote: matchNote
-                        });
-                    }
-                } catch (e) {}
+        // 🌟 KHÓA CHẶN 2 (BỘ LỌC KHOẢNG CÁCH NGỮ CẢNH):
+        // Model và Từ khóa BẮT BUỘC PHẢI NẰM CÙNG NHAU TRONG MỘT BẢNG (< 400 KÝ TỰ)!
+        // Nếu cách nhau cả ngàn ký tự như Trang 49 -> LOẠI BỎ NGAY LẬP TỨC!
+        let jointFocusPos = -1;
+        if (hasModelFilter && queryTerms.length > 0) {
+            let isSameTable = false;
+            
+            // Lấy tọa độ Model
+            const modelPositions = [];
+            for (const mm of modelMatchers) {
+                let f = 0, p;
+                const mClean = mm.clean;
+                while ((p = pageData.lowerText.indexOf(mClean, f)) !== -1) {
+                    modelPositions.push(p);
+                    f = p + Math.max(1, mClean.length);
+                }
             }
 
-            isPdfScanning = false;
-
-            // Lọc bảo đảm không bao giờ có 2 thẻ cùng số trang trong 1 file
-            const uniquePageMap = new Map();
-            rawMatches.forEach(m => {
-                const key = `${m.file.name}_${m.pageNum}`;
-                if (!uniquePageMap.has(key) || uniquePageMap.get(key).score < m.score) {
-                    uniquePageMap.set(key, m);
+            // Lấy tọa độ Từ khóa
+            const queryPositions = [];
+            const tList = hasExactFull ? [cleanQuery] : matchedTerms;
+            for (const t of tList) {
+                let f = 0, p;
+                while ((p = pageData.lowerText.indexOf(t, f)) !== -1) {
+                    queryPositions.push(p);
+                    f = p + Math.max(1, t.length);
                 }
-            });
-            let finalMatches = Array.from(uniquePageMap.values());
+            }
 
-            // Sắp xếp tự nhiên theo điểm và số trang
-            finalMatches.sort((a, b) => (b.score - a.score) || (a.pageNum - b.pageNum));
+            // Kiểm tra khoảng cách: phải < 400 ký tự mới tính là cùng 1 bảng
+            for (const mp of modelPositions) {
+                for (const qp of queryPositions) {
+                    if (Math.abs(mp - qp) < 400) {
+                        isSameTable = true;
+                        jointFocusPos = Math.min(mp, qp);
+                        break;
+                    }
+                }
+                if (isSameTable) break;
+            }
 
-            const displayMatches = finalMatches.slice(0, 100);
-            document.getElementById('badgePdf').innerText = `(${displayMatches.length})`;
+            // Nếu Model và Từ khóa nằm tít ở 2 góc xa lạ (như Trang 49) -> VỨT BỎ!
+            if (!isSameTable) return null;
+        }
 
-            displayMatches.forEach(item => {
+        let badgeClass = '';
+        let matchNote = '';
+        let score = 0;
+
+        if (hasModelFilter && queryTerms.length > 0) {
+            score = 5000 + (cleanQuery.length * 10);
+            badgeClass = 'badge-both-exact';
+            matchNote = `✨ Có cả Model (${modelDisp}) & Từ khóa trong cùng bảng`;
+        } else if (hasExactFull) {
+            score = 3000 + (cleanQuery.length * 10);
+            badgeClass = 'badge-exact';
+            matchNote = `🎯 Khớp từ khóa: "${cleanQuery}"`;
+        } else if (hasQuery) {
+            score = 2000 + (matchedTerms[0]?.length || 0) * 5;
+            badgeClass = 'badge-query';
+            matchNote = `📄 Khớp từ khóa: "${matchedTerms[0]}"`;
+        } else {
+            score = 1000;
+            badgeClass = 'badge-model';
+            matchNote = `📌 Khớp Model: ${modelDisp}`;
+        }
+
+        // Cắt snippet chuẩn xác bao trọn vị trí tìm thấy
+        let focusPos = jointFocusPos;
+        let focusTerm = '';
+
+        if (focusPos < 0) {
+            if (hasExactFull) {
+                focusPos = pageData.lowerText.indexOf(cleanQuery);
+                focusTerm = cleanQuery;
+            } else if (matchedTerms.length > 0) {
+                focusPos = pageData.lowerText.indexOf(matchedTerms[0]);
+                focusTerm = matchedTerms[0];
+            } else if (isModelOnPage) {
+                focusPos = pageData.lowerText.indexOf(modelDisp.toLowerCase());
+                focusTerm = modelDisp.toLowerCase();
+            }
+        } else {
+            focusTerm = cleanQuery || matchedTerms[0] || modelDisp.toLowerCase();
+        }
+        if (focusPos < 0) focusPos = 0;
+
+        let startPos = Math.max(0, focusPos - 40);
+        let snippet = pageData.fullText.substring(startPos, startPos + 260).replace(/\s+/g, ' ');
+        if (!snippet.trim()) snippet = `Trang ${pageData.pageNum}: Khớp kết quả tìm kiếm`;
+
+        let countOnPage = 0;
+        if (focusTerm) {
+            let f = 0, idx;
+            while ((idx = pageData.lowerText.indexOf(focusTerm, f)) !== -1) {
+                countOnPage++;
+                f = idx + Math.max(1, focusTerm.length);
+            }
+        }
+
+        // Mỗi trang đúng 1 thẻ duy nhất
+        return ({
+            file,
+            pageNum: pageData.pageNum,
+            fullText: pageData.fullText,
+            lowerText: pageData.lowerText,
+            snippet: snippet,
+            targetTerm: focusTerm,
+            targetPos: focusPos,
+            countOnPage: countOnPage,
+            score: score,
+            badgeClass: badgeClass,
+            matchNote: matchNote
+        });
+
+            };
+
+            // ---- Hiển thị 1 kết quả NGAY khi tìm thấy ----
+            const addMatchCard = (item) => {
                 const targetHitIndex = previewHits.length;
-                const termLower = item.targetTerm.toLowerCase();
+                const termLower = (item.targetTerm || '').toLowerCase();
 
                 let from = 0, foundP, occ = 0;
                 if (termLower) {
                     while ((foundP = item.lowerText.indexOf(termLower, from)) !== -1) {
-                        previewHits.push({
-                            fileName: item.file.name,
-                            pageNum: item.pageNum,
-                            term: termLower,
-                            occurrenceIndex: occ
-                        });
+                        previewHits.push({ fileName: item.file.name, pageNum: item.pageNum, term: termLower, occurrenceIndex: occ });
                         occ++;
                         from = foundP + Math.max(1, termLower.length);
                     }
                 }
                 if (occ === 0) {
-                    previewHits.push({
-                        fileName: item.file.name,
-                        pageNum: item.pageNum,
-                        term: termLower || 'hit',
-                        occurrenceIndex: 0
-                    });
+                    previewHits.push({ fileName: item.file.name, pageNum: item.pageNum, term: termLower || 'hit', occurrenceIndex: 0 });
                 }
 
-                // Tô màu vàng trên snippet
                 const hlRegex = new RegExp(`(${activeHighlightTerms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi');
                 const highlightSnippet = item.snippet.replace(hlRegex, m => `<mark>${m}</mark>`);
 
                 const card = document.createElement('div');
                 card.className = 'answer-card';
-
-                const safeFile = String(item.file.name).replace(/"/g, '&quot;');
-
                 card.innerHTML = `
                     <div class="card-header">
                         <span class="card-file">📄 ${item.file.name}</span>
@@ -1696,21 +1725,68 @@
                         <button class="btn-card btn-card-view" onclick="goToPreviewHit(${targetHitIndex})">👁️ Xem trực tiếp</button>
                     </div>`;
                 tabPdf.appendChild(card);
-            });
 
-            if (displayMatches.length === 0) {
+                cardCount++;
+                document.getElementById('badgePdf').innerText = `(${cardCount})`;
+                syncPreviewNavigator();
+
+                // Kết quả đầu tiên: mở xem ngay, các trang sau tiếp tục quét song song
+                if (!autoOpened) {
+                    autoOpened = true;
+                    goToPreviewHit(0);
+                }
+            };
+
+            const handleBatch = (pages) => {
+                if (session !== scanSessionId || cancelScanRequested) return;
+                for (const pageData of pages) {
+                    if (cardCount >= MAX_CARDS) return;
+                    if (!pageData || !pageData.pageNum) continue;
+                    const key = `${currentScanFile.name}_${pageData.pageNum}`;
+                    if (seenPages.has(key)) continue;
+                    let item = null;
+                    try { item = matchPage(currentScanFile, pageData); } catch (e) { item = null; }
+                    if (!item) continue;
+                    seenPages.add(key);
+                    addMatchCard(item);
+                }
+            };
+
+            let currentScanFile = null;
+
+            for (let i = 0; i < sortedFiles.length; i++) {
+                if (cancelScanRequested || session !== scanSessionId) break;
+                if (cardCount >= MAX_CARDS) break;
+                const file = sortedFiles[i];
+                currentScanFile = file;
+
+                const renderStatus = (done, total) => {
+                    if (session !== scanSessionId) return;
+                    statusBar.innerHTML = `<span>⚡ Đang quét PDF (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b>${total ? ` ${done}/${total} trang` : ''} · Tìm thấy: ${cardCount}</span>
+                    <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+                };
+                renderStatus(0, 0);
+
+                try {
+                    await getPdfTextPages(file, renderStatus, handleBatch);
+                } catch (e) { console.warn('Lỗi quét file', file.name, e); }
+            }
+
+            if (session !== scanSessionId) return;   // đã có lần tìm mới thay thế
+            isPdfScanning = false;
+
+            if (cardCount === 0) {
                 tabPdf.innerHTML = hasModelFilter 
                     ? `<div style="text-align:center; margin-top:30px; color:#ff9800; line-height:1.6;">
-                        ❌ Không tìm thấy trang nào chứa từ khóa "${queryPdf}" thuộc model <b>"${activeModels.join(', ')}"</b>.
+                        ❌ Không tìm thấy trang nào chứa đồng thời Model <b>"${activeModels.join(', ')}"</b> và từ khóa "${queryPdf}" trong cùng bảng biểu.
                        </div>`
                     : `<p style="text-align:center; margin-top:20px; line-height:1.6; color:#ddd;">❌ Không tìm thấy kết quả phù hợp cho từ khóa "${queryPdf}".</p>`;
             }
 
-            statusBar.innerHTML = cancelScanRequested ? `⏹️ Đã dừng quét.` : `✅ Đã quét xong!`;
+            statusBar.innerHTML = cancelScanRequested ? `⏹️ Đã dừng quét. Tìm thấy ${cardCount} trang.` : `✅ Đã quét xong! Tìm thấy ${cardCount} trang.`;
             syncPreviewNavigator();
-            if (previewHits.length) navigatePreviewHit(0, true);
         }
-
+        
         /* ================= HÀM LẤY NHÃN THÔNG SỐ EXCEL ================= */
         function getRowSpecLabel(matrix, r, targetCol) {
             let labelParts = [];
@@ -2243,6 +2319,7 @@
 
         async function goToPreviewHit(index) {
             if (!previewHits.length) return;
+            const myToken = ++jumpToken;
             activePreviewHitIndex = (index + previewHits.length) % previewHits.length;
             activePreviewHit = previewHits[activePreviewHitIndex];
             syncPreviewNavigator();
@@ -2252,67 +2329,57 @@
                 return; 
             }
 
-            const targetPage = activePreviewHit.pageNum;
+            const hit = activePreviewHit;
+            const targetPage = hit.pageNum;
             const container = document.getElementById('pdfScrollContainer');
 
             isJumpingToPage = true;
-            
-            // Xóa mây đỏ cũ ở tất cả các trang
-            document.querySelectorAll('.pdf-highlight-current').forEach(el => el.classList.remove('pdf-highlight-current'));
+            try {
+                document.querySelectorAll('.pdf-highlight-current').forEach(el => el.classList.remove('pdf-highlight-current'));
 
-            // 1. Mở file PDF chứa kết quả
-            await jumpToTargetPdf(activePreviewHit.fileName, targetPage);
+                // 1. Mở file PDF chứa kết quả
+                await jumpToTargetPdf(hit.fileName, targetPage);
+                if (myToken !== jumpToken) return;
 
-            // 🌟 2. BẮT BUỘC CUỘN ĐẾN TRANG ĐÍCH NGAY LẬP TỨC (Không bao giờ bị đứng đơ ở trang cũ)
-            scrollToPage(targetPage, true);
+                // 2. Cuộn tới trang đích
+                scrollToPage(targetPage, true);
 
-            // 3. Đảm bảo trang đích đã vẽ và highlight xong
-            const curCanvas = document.getElementById(`canvas-page-${targetPage}`);
-            if (curCanvas && curCanvas.dataset.rendered === "true") {
-                await refreshPageHighlights(targetPage);
-            } else {
-                for (let key in renderTasks) { try { renderTasks[key].cancel(); } catch(e){} }
-                renderTasks = {};
+                // 3. Vẽ trang đích cho chắc chắn (không bị trắng) rồi vẽ lại highlight theo kết quả đang chọn
                 await renderIndividualPage(targetPage);
-            }
+                if (myToken !== jumpToken) return;
+                await refreshPageHighlights(targetPage);
+                if (myToken !== jumpToken) return;
 
-            // 🌟 4. TÌM VÀ KÍCH HOẠT MÂY ĐỎ VỚI CƠ CHẾ DỰ PHÒNG THÔNG MINH
-            const hlLayer = document.getElementById(`hl-layer-${targetPage}`);
-            if (hlLayer) {
-                let targetBox = null;
+                // 4. Tìm ô highlight để khoanh đỏ
+                const hlLayer = document.getElementById(`hl-layer-${targetPage}`);
+                if (hlLayer) {
+                    const boxes = Array.from(hlLayer.querySelectorAll('.pdf-highlight-box'));
+                    const hitTerm = (hit.term || '').toLowerCase();
+                    let targetBox = boxes.find(b => b.dataset.term === hitTerm && Number(b.dataset.occurrence) === hit.occurrenceIndex)
+                        || boxes.find(b => b.dataset.term === hitTerm);
 
-                // Cách 1: Tìm đúng tên term và vị trí xuất hiện
-                if (activePreviewHit.term) {
-                    targetBox = hlLayer.querySelector(`.pdf-highlight-box[data-term="${activePreviewHit.term}"][data-occurrence="${activePreviewHit.occurrenceIndex}"]`);
-                    if (!targetBox) {
-                        targetBox = hlLayer.querySelector(`.pdf-highlight-box[data-term="${activePreviewHit.term}"]`);
+                    if (!targetBox && activeModels && activeModels.length > 0) {
+                        const modelKeys = activeModels.flatMap(m => [m.trim().toLowerCase(), m.replace(/[^a-z0-9]/gi, '').toLowerCase()]);
+                        targetBox = boxes.find(b => modelKeys.includes(b.dataset.term));
+                    }
+                    if (!targetBox) targetBox = boxes.find(b => b.classList.contains('pdf-highlight-current'));
+                    if (!targetBox) targetBox = boxes[0];
+
+                    if (targetBox) {
+                        boxes.forEach(b => b.classList.remove('pdf-highlight-current'));
+                        targetBox.classList.add('pdf-highlight-current');
+                        scrollElementToCenter(targetBox, container);
                     }
                 }
-
-                // Cách 2: Nếu không thấy (do từ đồng nghĩa), tìm ô của Model (vd: RXQ62BYM)
-                if (!targetBox && activeModels && activeModels.length > 0) {
-                    for (const m of activeModels) {
-                        targetBox = hlLayer.querySelector(`.pdf-highlight-box[data-term="${m.toLowerCase()}"]`);
-                        if (targetBox) break;
-                    }
-                }
-
-                // Cách 3: Nếu vẫn chưa thấy, lấy ô highlight đầu tiên có trên trang này
-                if (!targetBox) {
-                    targetBox = hlLayer.querySelector('.pdf-highlight-box');
-                }
-
-                // Khi đã tìm được ô: Khoanh mây đỏ và cuộn vào chính giữa màn hình
-                if (targetBox) {
-                    targetBox.classList.add('pdf-highlight-current');
-                    scrollElementToCenter(targetBox, container);
+            } finally {
+                if (myToken === jumpToken) {
+                    setTimeout(() => {
+                        if (myToken !== jumpToken) return;
+                        isJumpingToPage = false;
+                        renderVisiblePages();
+                    }, 250);
                 }
             }
-
-            setTimeout(() => {
-                isJumpingToPage = false;
-                renderVisiblePages();
-            }, 200);
         }
 
         async function pdfResetView() {
@@ -2432,7 +2499,14 @@
             
         }
 
-        async function jumpToTargetPdf(fileName, targetPage) {
+        let jumpQueue = Promise.resolve();
+        function jumpToTargetPdf(fileName, targetPage) {
+            // Xếp hàng để 2 lần mở file không chạy chồng nhau (tránh khung trống / trắng trang)
+            const run = jumpQueue.then(() => _jumpToTargetPdfImpl(fileName, targetPage));
+            jumpQueue = run.catch(() => {});
+            return run;
+        }
+        async function _jumpToTargetPdfImpl(fileName, targetPage) {
             const file = filteredPdfFiles.find(f => f.name === fileName) || allMasterFiles.find(f => f.name === fileName); 
             if (!file) return;
             document.getElementById('pdfControls').style.display = 'flex';
@@ -2449,6 +2523,9 @@
                 parsedPdfDocCache[cacheKey] = currentPdfDoc;
                 
                 globalRotation = 0; singlePageRotations = {};
+                renderEpoch++;
+                for (let key in renderTasks) { try { renderTasks[key].cancel(); } catch(e){} }
+                renderTasks = {}; renderPromises = {};
                 const container = document.getElementById('pdfScrollContainer'); 
                 container.innerHTML = '';
                 
@@ -2495,51 +2572,64 @@
             }
         }
 
+        let renderPromises = {};
         async function renderIndividualPage(pageNum) {
             const canvas = document.getElementById(`canvas-page-${pageNum}`); 
-            if (!canvas || canvas.dataset.rendered === "true") return;
-            if (renderTasks[pageNum]) return;
+            if (!canvas || !currentPdfDoc || canvas.dataset.rendered === "true") return;
+            if (renderPromises[pageNum]) return renderPromises[pageNum];
 
-            try {
-                const page = await currentPdfDoc.getPage(pageNum);
-                // Tự động nhận diện trang ngang/đứng chuẩn xác theo tài liệu gốc
-                const rot = ((page.rotate || 0) + getPageRotation(pageNum)) % 360;
-                const viewport = page.getViewport({ scale: currentScale, rotation: rot });
+            const epoch = renderEpoch;
+            const doc = currentPdfDoc;
 
-                const wrapper = document.getElementById(`pdf-page-${pageNum}`);
-                if (wrapper) { 
-                    wrapper.style.width = `${viewport.width}px`; 
-                    wrapper.style.height = `${viewport.height}px`; 
+            const job = (async () => {
+                try {
+                    const page = await doc.getPage(pageNum);
+                    if (epoch !== renderEpoch) return;
+                    const rot = ((page.rotate || 0) + getPageRotation(pageNum)) % 360;
+                    const viewport = page.getViewport({ scale: currentScale, rotation: rot });
+
+                    const wrapper = document.getElementById(`pdf-page-${pageNum}`);
+                    if (wrapper) { 
+                        wrapper.style.width = `${viewport.width}px`; 
+                        wrapper.style.height = `${viewport.height}px`; 
+                    }
+
+                    const scratchCanvas = document.createElement('canvas');
+                    scratchCanvas.width = Math.ceil(viewport.width);
+                    scratchCanvas.height = Math.ceil(viewport.height);
+                    const scratchCtx = scratchCanvas.getContext('2d');
+                    scratchCtx.fillStyle = '#ffffff';
+                    scratchCtx.fillRect(0, 0, scratchCanvas.width, scratchCanvas.height);
+
+                    const task = page.render({ canvasContext: scratchCtx, viewport: viewport });
+                    renderTasks[pageNum] = task; 
+                    await task.promise;
+
+                    // Đã bị hủy / đổi tài liệu / đổi zoom trong lúc vẽ -> bỏ kết quả cũ
+                    if (epoch !== renderEpoch || doc !== currentPdfDoc) return;
+                    const liveCanvas = document.getElementById(`canvas-page-${pageNum}`);
+                    if (!liveCanvas) return;
+
+                    liveCanvas.width = scratchCanvas.width; 
+                    liveCanvas.height = scratchCanvas.height;
+                    liveCanvas.style.width = `${viewport.width}px`; 
+                    liveCanvas.style.height = `${viewport.height}px`;
+                    liveCanvas.getContext('2d').drawImage(scratchCanvas, 0, 0);
+
+                    liveCanvas.dataset.rendered = "true"; 
+                    await drawHighlightsOnPage(page, viewport, pageNum);
+                } catch (err) {
+                    if (err?.name !== 'RenderingCancelledException') {
+                        console.error("Lỗi vẽ trang:", err);
+                    }
                 }
+            })();
 
-                const scratchCanvas = document.createElement('canvas');
-                scratchCanvas.width = viewport.width;
-                scratchCanvas.height = viewport.height;
-                const scratchCtx = scratchCanvas.getContext('2d');
-
-                scratchCtx.fillStyle = '#ffffff';
-                scratchCtx.fillRect(0, 0, viewport.width, viewport.height);
-
-                const task = page.render({ canvasContext: scratchCtx, viewport: viewport });
-                renderTasks[pageNum] = task; 
-                await task.promise;
-                
-                canvas.width = viewport.width; 
-                canvas.height = viewport.height;
-                canvas.style.width = `${viewport.width}px`; 
-                canvas.style.height = `${viewport.height}px`;
-
-                const context = canvas.getContext('2d');
-                context.drawImage(scratchCanvas, 0, 0);
-
-                canvas.dataset.rendered = "true"; 
-                await drawHighlightsOnPage(page, viewport, pageNum);
-            } catch (err) {
-                if (err?.name !== 'RenderingCancelledException') {
-                    console.error("Lỗi vẽ trang:", err);
-                }
-            } finally { 
-                delete renderTasks[pageNum]; 
+            renderPromises[pageNum] = job;
+            try { await job; }
+            finally {
+                if (renderPromises[pageNum] === job) delete renderPromises[pageNum];
+                if (epoch === renderEpoch) delete renderTasks[pageNum];
             }
         }
 
@@ -2802,10 +2892,12 @@
         }
 
         function refreshAllPages() {
+            renderEpoch++;
             for (let key in renderTasks) { 
                 try { renderTasks[key].cancel(); } catch(e){} 
             }
             renderTasks = {};
+            renderPromises = {};
             for (let i = 1; i <= currentPdfDoc.numPages; i++) {
                 const c = document.getElementById(`canvas-page-${i}`); 
                 if (c) c.dataset.rendered = "false";
