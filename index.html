@@ -221,11 +221,7 @@
             <button class="btn-upload btn-upload-excel" onclick="chooseExcelFiles()">📊 2. Chọn file Office</button>
             
             <button class="btn-upload" id="btnRefreshSources" onclick="userTriggerRefresh()" style="background: #007acc; display: flex; align-items: center; gap: 6px;">
-                🔄 Làm mới dữ liệu
-            </button>
-
-            <button class="btn-upload" id="btnIndexAll" onclick="toggleBackgroundIndex()" style="background: #6f42c1;" title="Quét sẵn toàn bộ PDF 1 lần, lưu lại để các lần mở sau tìm kiếm tức thì">
-                ⚡ Lập chỉ mục tất cả
+                🔄 Làm mới & lập chỉ mục
             </button>
 
             <button class="btn-upload" style="background: #c53030;" onclick="resetAllSources()" title="Xoá nguồn đã ghi nhớ">
@@ -1087,30 +1083,31 @@
         }
 
         let bgIndexing = false, cancelBgIndex = false;
-        async function toggleBackgroundIndex() {
-            const btn = document.getElementById('btnIndexAll');
-            if (bgIndexing) { cancelBgIndex = true; if (btn) btn.innerText = '⏳ Đang dừng...'; return; }
-            if (!allMasterFiles.length) { alert('Chưa nạp folder PDF. Hãy bấm [🔄 Làm mới dữ liệu] trước.'); return; }
+        const REFRESH_BTN_IDLE = '🔄 Làm mới & lập chỉ mục';
+        async function runBackgroundIndex() {
+            const btn = document.getElementById('btnRefreshSources');
+            if (!allMasterFiles.length) return;
             await indexLoadPromise;
             const files = allMasterFiles.filter(f => !hasIndex(f));
-            if (!files.length) { alert('✅ Tất cả file PDF đã có trong chỉ mục. Tìm kiếm sẽ chạy tức thì.'); return; }
+            if (!files.length) { updateStatusUI('✅ Tất cả PDF đã có trong chỉ mục, tìm kiếm chạy tức thì.'); return; }
 
             bgIndexing = true; cancelBgIndex = false;
-            if (btn) btn.innerText = '⏹️ Dừng lập chỉ mục';
             let next = 0, done = 0;
+            const setBtn = () => { if (btn) btn.innerText = `⏹️ Dừng lập chỉ mục (${done}/${files.length})`; };
+            setBtn();
             const worker = async () => {
                 while (!cancelBgIndex) {
                     const i = next++;
                     if (i >= files.length) break;
                     try { await ensureFileIndexed(files[i], { shouldStop: () => cancelBgIndex }); } catch (e) { console.warn(e); }
                     done++;
-                    updateStatusUI(`⚡ Đang lập chỉ mục ${done}/${files.length} file...`);
+                    if (!cancelBgIndex) setBtn();
+                    updateStatusUI(`⚡ Đang lập chỉ mục ${done}/${files.length} file mới...`);
                 }
             };
             await Promise.all(Array.from({ length: scanConcurrency() }, worker));
             bgIndexing = false;
-            if (btn) btn.innerText = '⚡ Lập chỉ mục tất cả';
-            updateStatusUI(cancelBgIndex ? 'Đã dừng lập chỉ mục (phần đã quét vẫn được lưu).' : '✅ Đã lập chỉ mục xong, các lần sau mở lại sẽ không quét lại.');
+            updateStatusUI(cancelBgIndex ? 'Đã dừng lập chỉ mục (phần đã quét vẫn được lưu).' : '✅ Đã lập chỉ mục xong, các lần mở sau không quét lại.');
         }
 
         async function saveSourceHandle(key, value) {
@@ -1234,7 +1231,7 @@
                 }
 
                 if ((sourceFolderHandle && !folderGranted) || (excelFileHandles.length && accessibleExcelHandles.length === 0)) {
-                    updateStatusUI("⚠️ Đã nhớ nguồn cũ. Bấm nút [🔄 Làm mới dữ liệu] để kết nối lại.");
+                    updateStatusUI("⚠️ Đã nhớ nguồn cũ. Bấm nút [🔄 Làm mới & lập chỉ mục] để kết nối lại.");
                     return;
                 }
 
@@ -1257,9 +1254,16 @@
 
         async function userTriggerRefresh() {
             const btn = document.getElementById('btnRefreshSources');
-            if (btn) btn.innerText = "⏳ Đang quét...";
-            await refreshSourceFiles(true, true);
-            if (btn) btn.innerText = "🔄 Làm mới dữ liệu";
+            // Bấm lại khi đang lập chỉ mục = dừng
+            if (bgIndexing) { cancelBgIndex = true; if (btn) btn.innerText = '⏳ Đang dừng...'; return; }
+            if (btn) btn.innerText = '⏳ Đang nạp dữ liệu...';
+            try {
+                await refreshSourceFiles(true, true);
+                await runBackgroundIndex();
+            } finally {
+                bgIndexing = false;
+                if (btn) btn.innerText = REFRESH_BTN_IDLE;
+            }
         }
 
         async function restoreSavedSources() {
@@ -1272,7 +1276,7 @@
                     const srcNames = [];
                     if (sourceFolderHandle) srcNames.push(`Folder: ${sourceFolderHandle.name}`);
                     if (excelFileHandles.length) srcNames.push(`${excelFileHandles.length} file Office`);
-                    updateStatusUI(`📁 Nguồn đã ghi nhớ: ${srcNames.join(' · ')}.<br>👉 Bấm <b>[🔄 Làm mới dữ liệu]</b> để nạp.`);
+                    updateStatusUI(`📁 Nguồn đã ghi nhớ: ${srcNames.join(' · ')}.<br>👉 Bấm <b>[🔄 Làm mới & lập chỉ mục]</b> để nạp.`);
 
                     // Nếu trình duyệt còn nhớ quyền truy cập -> tự nạp luôn, không cần bấm gì
                     let allGranted = true;
