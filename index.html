@@ -2255,43 +2255,18 @@
             const targetPage = activePreviewHit.pageNum;
             const container = document.getElementById('pdfScrollContainer');
 
-            const isSameDoc = currentPdfDoc && document.getElementById('activeDocTitle').innerText === `📄 ${activePreviewHit.fileName}`;
-            const hlLayer = document.getElementById(`hl-layer-${targetPage}`);
-            const canvas = document.getElementById(`canvas-page-${targetPage}`);
-            const isPageRendered = canvas && canvas.dataset.rendered === "true";
-
-            if (isSameDoc && isPageRendered && hlLayer) {
-                hlLayer.querySelectorAll('.pdf-highlight-box.pdf-highlight-current').forEach(el => {
-                    el.classList.remove('pdf-highlight-current');
-                    el.style.left = (parseFloat(el.style.left) + 8) + 'px';
-                    el.style.top = (parseFloat(el.style.top) + 6) + 'px';
-                    el.style.width = (parseFloat(el.style.width) - 16) + 'px';
-                    el.style.height = (parseFloat(el.style.height) - 12) + 'px';
-                });
-
-                let targetBox = hlLayer.querySelector(`.pdf-highlight-box[data-term="${activePreviewHit.term}"][data-occurrence="${activePreviewHit.occurrenceIndex}"]`);
-                if (!targetBox) {
-                    const allBoxes = hlLayer.querySelectorAll(`.pdf-highlight-box[data-term="${activePreviewHit.term}"]`);
-                    if (allBoxes.length > 0) targetBox = allBoxes[activePreviewHit.occurrenceIndex % allBoxes.length];
-                }
-
-                if (targetBox) {
-                    targetBox.classList.add('pdf-highlight-current');
-                    targetBox.style.left = (parseFloat(targetBox.style.left) - 8) + 'px';
-                    targetBox.style.top = (parseFloat(targetBox.style.top) - 6) + 'px';
-                    targetBox.style.width = (parseFloat(targetBox.style.width) + 16) + 'px';
-                    targetBox.style.height = (parseFloat(targetBox.style.height) + 12) + 'px';
-
-                    scrollElementToCenter(targetBox, container);
-                }
-                return;
-            }
-
             isJumpingToPage = true;
+            
+            // Xóa mây đỏ cũ ở tất cả các trang
             document.querySelectorAll('.pdf-highlight-current').forEach(el => el.classList.remove('pdf-highlight-current'));
 
+            // 1. Mở file PDF chứa kết quả
             await jumpToTargetPdf(activePreviewHit.fileName, targetPage);
 
+            // 🌟 2. BẮT BUỘC CUỘN ĐẾN TRANG ĐÍCH NGAY LẬP TỨC (Không bao giờ bị đứng đơ ở trang cũ)
+            scrollToPage(targetPage, true);
+
+            // 3. Đảm bảo trang đích đã vẽ và highlight xong
             const curCanvas = document.getElementById(`canvas-page-${targetPage}`);
             if (curCanvas && curCanvas.dataset.rendered === "true") {
                 await refreshPageHighlights(targetPage);
@@ -2301,11 +2276,35 @@
                 await renderIndividualPage(targetPage);
             }
 
-            const newHlLayer = document.getElementById(`hl-layer-${targetPage}`);
-            if (newHlLayer) {
-                let targetBox = newHlLayer.querySelector(`.pdf-highlight-box[data-term="${activePreviewHit.term}"][data-occurrence="${activePreviewHit.occurrenceIndex}"]`);
-                if (!targetBox) targetBox = newHlLayer.querySelector('.pdf-highlight-current') || newHlLayer.querySelector('.pdf-highlight-box');
+            // 🌟 4. TÌM VÀ KÍCH HOẠT MÂY ĐỎ VỚI CƠ CHẾ DỰ PHÒNG THÔNG MINH
+            const hlLayer = document.getElementById(`hl-layer-${targetPage}`);
+            if (hlLayer) {
+                let targetBox = null;
+
+                // Cách 1: Tìm đúng tên term và vị trí xuất hiện
+                if (activePreviewHit.term) {
+                    targetBox = hlLayer.querySelector(`.pdf-highlight-box[data-term="${activePreviewHit.term}"][data-occurrence="${activePreviewHit.occurrenceIndex}"]`);
+                    if (!targetBox) {
+                        targetBox = hlLayer.querySelector(`.pdf-highlight-box[data-term="${activePreviewHit.term}"]`);
+                    }
+                }
+
+                // Cách 2: Nếu không thấy (do từ đồng nghĩa), tìm ô của Model (vd: RXQ62BYM)
+                if (!targetBox && activeModels && activeModels.length > 0) {
+                    for (const m of activeModels) {
+                        targetBox = hlLayer.querySelector(`.pdf-highlight-box[data-term="${m.toLowerCase()}"]`);
+                        if (targetBox) break;
+                    }
+                }
+
+                // Cách 3: Nếu vẫn chưa thấy, lấy ô highlight đầu tiên có trên trang này
+                if (!targetBox) {
+                    targetBox = hlLayer.querySelector('.pdf-highlight-box');
+                }
+
+                // Khi đã tìm được ô: Khoanh mây đỏ và cuộn vào chính giữa màn hình
                 if (targetBox) {
+                    targetBox.classList.add('pdf-highlight-current');
                     scrollElementToCenter(targetBox, container);
                 }
             }
