@@ -224,15 +224,14 @@
                 🔄 Làm mới & lập chỉ mục
             </button>
 
-            <button class="btn-upload" style="background: #c53030;" onclick="resetAllSources()" title="Xoá nguồn đã ghi nhớ">
-                🗑️ Đặt lại nguồn
-            </button>
-
             <select id="docTypeSelect" class="doc-type-dropdown" onchange="applyAllFilters()" disabled>
                 <option value="ALL">🗂️ -- Tất cả PDF --</option>
             </select>
         </div>
-        <div class="folder-status" id="folderStatus">Chưa nạp dữ liệu.</div>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="folder-status" id="folderStatus">Chưa nạp dữ liệu.</div>
+            <button onclick="resetAllSources()" title="Xoá nguồn đã ghi nhớ (folder PDF và file Office). Chỉ mục đã quét vẫn được giữ lại." style="background:#c53030; color:#fff; border:none; padding:3px 9px; border-radius:3px; font-size:11px; font-weight:bold; cursor:pointer; white-space:nowrap;">Reset</button>
+        </div>
     </div>
 
     <div class="workspace">
@@ -953,8 +952,8 @@
         function hydrateIndexPages(pages) {
             return (pages || []).filter(p => p && p.pageNum).map(p => ({
                 pageNum: p.pageNum,
-                fullText: p.fullText || '',
-                lowerText: (p.fullText || '').toLowerCase()
+                fullText: (p.fullText || '').normalize('NFC'),
+                lowerText: (p.fullText || '').normalize('NFC').toLowerCase()
             }));
         }
 
@@ -1027,7 +1026,7 @@
                     if (x < -150 || y < -150 || x > viewport.width + 150 || y > viewport.height + 150) return false;
                     return true;
                 });
-                const fullText = validItems.map(item => item.str || '').join(' ');
+                const fullText = validItems.map(item => item.str || '').join(' ').normalize('NFC');
                 try { page.cleanup(); } catch (e) {}
                 return { pageNum, fullText, lowerText: fullText.toLowerCase() };
             } catch (err) {
@@ -1608,7 +1607,7 @@
 
       async function searchPdfOnlyCore() {
             activeModels = getActiveSearchModels();
-            const queryPdf = document.getElementById('queryInput').value.trim();
+            const queryPdf = document.getElementById('queryInput').value.trim().normalize('NFC');
             const tabPdf = document.getElementById('tabPdf');
             const statusBar = document.getElementById('searchStatusBar');
 
@@ -1674,6 +1673,7 @@
             cancelScanRequested = false;
 
             const modelPairs = activeModels.map(m => ({ m, mm: buildModelMatchers(m) })).filter(x => x.mm);
+            const matchStats = { model: 0, query: 0, both: 0, far: 0 };
             const seenPages = new Set();
             const MAX_CARDS = 100;
             let cardCount = 0;
@@ -1691,6 +1691,9 @@
                              (cleanQuery && pageData.lowerText.includes(cleanQuery));
         const matchedTerms = queryTerms.filter(t => pageData.lowerText.includes(t));
         const hasQuery = matchedTerms.length > 0;
+        if (isModelOnPage) matchStats.model++;
+        if (hasQuery || hasExactFull) matchStats.query++;
+        if (isModelOnPage && (hasQuery || hasExactFull)) matchStats.both++;
 
         // 🌟 KHÓA CHẶN 1: NẾU ĐÃ NHẬP CẢ MODEL VÀ TỪ KHÓA
         // Trang BẮT BUỘC PHẢI CÓ CẢ HAI! Thiếu 1 trong 2 (như trang 20, 29, 34) BỊ LOẠI BỎ NGAY!
@@ -1724,7 +1727,7 @@
 
             // Lấy tọa độ Từ khóa
             const queryPositions = [];
-            const tList = hasExactFull ? [cleanQuery] : matchedTerms;
+            const tList = (hasExactFull && cleanQuery && pageData.lowerText.includes(cleanQuery)) ? [cleanQuery] : matchedTerms;
             for (const t of tList) {
                 let f = 0, p;
                 while ((p = pageData.lowerText.indexOf(t, f)) !== -1) {
@@ -1733,20 +1736,16 @@
                 }
             }
 
-            // Kiểm tra khoảng cách: phải < 400 ký tự mới tính là cùng 1 bảng
-            for (const mp of modelPositions) {
-                for (const qp of queryPositions) {
-                    if (Math.abs(mp - qp) < 400) {
-                        isSameTable = true;
-                        jointFocusPos = Math.min(mp, qp);
-                        break;
-                    }
+            // Chỉ cần model và từ khóa CÙNG TRANG là nhận. Chọn cặp gần nhau nhất để cắt đoạn trích cho dễ đọc.
+            let bestDist = Infinity;
+            const mpList = modelPositions.slice(0, 200), qpList = queryPositions.slice(0, 200);
+            for (const mp of mpList) {
+                for (const qp of qpList) {
+                    const d = Math.abs(mp - qp);
+                    if (d < bestDist) { bestDist = d; jointFocusPos = Math.min(mp, qp); }
                 }
-                if (isSameTable) break;
             }
-
-            // Nếu Model và Từ khóa nằm tít ở 2 góc xa lạ (như Trang 49) -> VỨT BỎ!
-            if (!isSameTable) return null;
+            if (jointFocusPos < 0) jointFocusPos = qpList.length ? qpList[0] : (mpList[0] ?? -1);
         }
 
         let badgeClass = '';
@@ -1756,7 +1755,7 @@
         if (hasModelFilter && queryTerms.length > 0) {
             score = 5000 + (cleanQuery.length * 10);
             badgeClass = 'badge-both-exact';
-            matchNote = `✨ Có cả Model (${modelDisp}) & Từ khóa trong cùng bảng`;
+            matchNote = `✨ Có cả Model (${modelDisp}) & Từ khóa trong cùng trang`;
         } else if (hasExactFull) {
             score = 3000 + (cleanQuery.length * 10);
             badgeClass = 'badge-exact';
@@ -1938,7 +1937,8 @@
             if (cardCount === 0) {
                 tabPdf.innerHTML = hasModelFilter 
                     ? `<div style="text-align:center; margin-top:30px; color:#ff9800; line-height:1.6;">
-                        ❌ Không tìm thấy trang nào chứa đồng thời Model <b>"${activeModels.join(', ')}"</b> và từ khóa "${queryPdf}" trong cùng bảng biểu.
+                        ❌ Không tìm thấy trang nào chứa đồng thời Model <b>"${activeModels.join(', ')}"</b> và từ khóa "${queryPdf}" trong cùng trang.
+                        <div style="margin-top:8px; font-size:11px; color:#aaa;">📊 Chỉ mục có <b>${matchStats.model}</b> trang chứa model, <b>${matchStats.query}</b> trang chứa từ khóa, <b>${matchStats.both}</b> trang chứa cả hai.</div>
                        </div>`
                     : `<p style="text-align:center; margin-top:20px; line-height:1.6; color:#ddd;">❌ Không tìm thấy kết quả phù hợp cho từ khóa "${queryPdf}".</p>`;
             }
