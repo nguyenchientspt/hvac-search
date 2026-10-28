@@ -224,6 +224,10 @@
                 🔄 Làm mới dữ liệu
             </button>
 
+            <button class="btn-upload" id="btnIndexAll" onclick="toggleBackgroundIndex()" style="background: #6f42c1;" title="Quét sẵn toàn bộ PDF 1 lần, lưu lại để các lần mở sau tìm kiếm tức thì">
+                ⚡ Lập chỉ mục tất cả
+            </button>
+
             <button class="btn-upload" style="background: #c53030;" onclick="resetAllSources()" title="Xoá nguồn đã ghi nhớ">
                 🗑️ Đặt lại nguồn
             </button>
@@ -897,30 +901,216 @@
             });
         }
 
+        /* ================= CHỈ MỤC VĂN BẢN PDF (LƯU BỀN TRONG INDEXEDDB) ================= */
+        let _srcDbPromise = null;
+        function getSharedDb() {
+            if (!_srcDbPromise) {
+                _srcDbPromise = openSourceDb().then(db => {
+                    db.onversionchange = () => { try { db.close(); } catch (e) {} _srcDbPromise = null; };
+                    db.onclose = () => { _srcDbPromise = null; };
+                    return db;
+                }).catch(e => { _srcDbPromise = null; throw e; });
+            }
+            return _srcDbPromise;
+        }
+
         async function getCachedPdfText(key) {
             try {
-                const db = await openSourceDb();
+                const db = await getSharedDb();
                 return await new Promise((resolve) => {
-                    const tx = db.transaction('pdf_cache', 'readonly');
-                    const req = tx.objectStore('pdf_cache').get(key);
+                    const req = db.transaction('pdf_cache', 'readonly').objectStore('pdf_cache').get(key);
                     req.onsuccess = () => resolve(req.result || null);
                     req.onerror = () => resolve(null);
-                    tx.oncomplete = () => db.close();
-                    tx.onerror = () => db.close();
                 });
-            } catch(e) { return null; }
+            } catch (e) { return null; }
         }
 
         async function setCachedPdfText(key, value) {
+            await putIndexEntries([{ key, value }]);
+        }
+
+        async function putIndexEntries(list) {
+            if (!list.length) return;
             try {
-                const db = await openSourceDb();
-                await new Promise((resolve, reject) => {
+                const db = await getSharedDb();
+                await new Promise((resolve) => {
                     const tx = db.transaction('pdf_cache', 'readwrite');
-                    tx.objectStore('pdf_cache').put(value, key);
-                    tx.oncomplete = () => { db.close(); resolve(); };
-                    tx.onerror = () => { db.close(); reject(tx.error); };
+                    const st = tx.objectStore('pdf_cache');
+                    list.forEach(x => st.put(x.value, x.key));
+                    tx.oncomplete = resolve; tx.onerror = resolve; tx.onabort = resolve;
                 });
-            } catch(e) {}
+            } catch (e) {}
+        }
+
+        const IDX_PREFIX = 'idx4|';
+        let pdfIndex = new Map();               // idxKey -> { sig, pages:[{pageNum, fullText, lowerText}] }
+        let indexLoadPromise = Promise.resolve();
+        const inflightIndex = new Map();
+        let workerPool = null, workerCursor = 0;
+
+        function fileIdxKey(f) { return IDX_PREFIX + (f.webkitRelativePath || f.name); }
+        function fileSig(f) { return `${f.size || 0}_${f.lastModified || 0}`; }
+        function legacyIdxKey(f) { return `${f.name}_${f.size || 0}_${f.lastModified || 0}_v3_CleanGhost`; }
+        function hasIndex(f) { const e = pdfIndex.get(fileIdxKey(f)); return !!(e && e.sig === fileSig(f)); }
+        function countIndexedFiles() { let n = 0; for (const f of allMasterFiles) if (hasIndex(f)) n++; return n; }
+
+        function hydrateIndexPages(pages) {
+            return (pages || []).filter(p => p && p.pageNum).map(p => ({
+                pageNum: p.pageNum,
+                fullText: p.fullText || '',
+                lowerText: (p.fullText || '').toLowerCase()
+            }));
+        }
+
+        // Nạp toàn bộ chỉ mục đã lưu vào RAM (1 lần), có tận dụng cache cũ (v3) để KHÔNG phải quét lại
+        function loadIndexForFiles(files) {
+            return (async () => {
+                try {
+                    const want = new Map();
+                    files.forEach(f => want.set(fileIdxKey(f), f));
+                    const db = await getSharedDb();
+
+                    await new Promise((resolve) => {
+                        const tx = db.transaction('pdf_cache', 'readonly');
+                        const req = tx.objectStore('pdf_cache').openCursor(IDBKeyRange.bound(IDX_PREFIX, IDX_PREFIX + '\uffff'));
+                        req.onsuccess = (e) => {
+                            const cur = e.target.result;
+                            if (!cur) return;
+                            const f = want.get(cur.key);
+                            if (f && cur.value && cur.value.sig === fileSig(f) && !hasIndex(f)) {
+                                pdfIndex.set(cur.key, { sig: cur.value.sig, pages: hydrateIndexPages(cur.value.pages) });
+                            }
+                            cur.continue();
+                        };
+                        tx.oncomplete = resolve; tx.onerror = resolve; tx.onabort = resolve;
+                    });
+                    updateStatusUI();
+
+                    // Di chuyển cache cũ (v3) sang chỉ mục mới
+                    const missing = files.filter(f => !hasIndex(f));
+                    for (let i = 0; i < missing.length; i += 40) {
+                        const batch = missing.slice(i, i + 40);
+                        const migrated = [];
+                        await Promise.all(batch.map(async (f) => {
+                            const old = await getCachedPdfText(legacyIdxKey(f));
+                            if (Array.isArray(old) && old.length > 0) {
+                                const pages = hydrateIndexPages(old);
+                                if (pages.length) {
+                                    pdfIndex.set(fileIdxKey(f), { sig: fileSig(f), pages });
+                                    migrated.push({ key: fileIdxKey(f), value: { sig: fileSig(f), pages: pages.map(p => ({ pageNum: p.pageNum, fullText: p.fullText })) } });
+                                }
+                            }
+                        }));
+                        putIndexEntries(migrated);
+                    }
+                } catch (e) { console.warn('Lỗi nạp chỉ mục', e); }
+                updateStatusUI();
+            })();
+        }
+
+        function getWorkerPool() {
+            if (workerPool) return workerPool;
+            workerPool = [];
+            const n = Math.max(2, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
+            for (let i = 0; i < n; i++) {
+                try { workerPool.push(new pdfjsLib.PDFWorker({ name: 'scan-' + i })); } catch (e) { break; }
+            }
+            return workerPool;
+        }
+        function scanConcurrency() { return Math.max(2, getWorkerPool().length); }
+
+        async function extractPageText(pdf, pageNum) {
+            try {
+                const page = await pdf.getPage(pageNum);
+                const content = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
+                const viewport = page.getViewport({ scale: 1.0 });
+                const validItems = (content.items || []).filter(item => {
+                    if (!item.str || item.str.trim() === '') return true;
+                    const x = item.transform[4], y = item.transform[5];
+                    if (Math.abs(item.transform[0]) < 0.01 && Math.abs(item.transform[3]) < 0.01) return false;
+                    if (x < -150 || y < -150 || x > viewport.width + 150 || y > viewport.height + 150) return false;
+                    return true;
+                });
+                const fullText = validItems.map(item => item.str || '').join(' ');
+                try { page.cleanup(); } catch (e) {}
+                return { pageNum, fullText, lowerText: fullText.toLowerCase() };
+            } catch (err) {
+                return { pageNum, fullText: '', lowerText: '' };
+            }
+        }
+
+        async function scanFileToIndex(file, opts) {
+            const { onProgress, onBatch, shouldStop } = opts || {};
+            const key = fileIdxKey(file), sig = fileSig(file);
+            const pool = getWorkerPool();
+            const worker = pool.length ? pool[(workerCursor++) % pool.length] : null;
+
+            const buf = await file.arrayBuffer();
+            const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buf), ...PDF_JS_CONFIG, ...(worker ? { worker } : {}) });
+            try {
+                const pdf = await loadingTask.promise;
+                const pages = new Array(pdf.numPages);
+                const BATCH = 16;
+                for (let start = 1; start <= pdf.numPages; start += BATCH) {
+                    if (shouldStop && shouldStop()) return null;
+                    const end = Math.min(pdf.numPages, start + BATCH - 1);
+                    const jobs = [];
+                    for (let n = start; n <= end; n++) jobs.push(extractPageText(pdf, n));
+                    const batchResults = await Promise.all(jobs);
+                    batchResults.forEach(r => { pages[r.pageNum - 1] = r; });
+                    if (onBatch) onBatch(batchResults);
+                    if (onProgress) onProgress(end, pdf.numPages);
+                    await new Promise(r => setTimeout(r, 0));
+                }
+                pdfIndex.set(key, { sig, pages });
+                putIndexEntries([{ key, value: { sig, pages: pages.map(p => ({ pageNum: p.pageNum, fullText: p.fullText })) } }]);
+                return pages;
+            } finally {
+                try { loadingTask.destroy(); } catch (e) {}
+            }
+        }
+
+        // Lấy văn bản của 1 file: có sẵn trong chỉ mục thì trả về ngay, chưa có thì quét và lưu lại
+        async function ensureFileIndexed(file, opts) {
+            const o = opts || {};
+            const key = fileIdxKey(file);
+            const cur = pdfIndex.get(key);
+            if (cur && cur.sig === fileSig(file)) { if (o.onBatch) o.onBatch(cur.pages); return cur.pages; }
+            if (inflightIndex.has(key)) {
+                const pages = await inflightIndex.get(key);
+                if (pages && o.onBatch) o.onBatch(pages);
+                return pages;
+            }
+            const job = scanFileToIndex(file, o).finally(() => inflightIndex.delete(key));
+            inflightIndex.set(key, job);
+            return job;
+        }
+
+        let bgIndexing = false, cancelBgIndex = false;
+        async function toggleBackgroundIndex() {
+            const btn = document.getElementById('btnIndexAll');
+            if (bgIndexing) { cancelBgIndex = true; if (btn) btn.innerText = '⏳ Đang dừng...'; return; }
+            if (!allMasterFiles.length) { alert('Chưa nạp folder PDF. Hãy bấm [🔄 Làm mới dữ liệu] trước.'); return; }
+            await indexLoadPromise;
+            const files = allMasterFiles.filter(f => !hasIndex(f));
+            if (!files.length) { alert('✅ Tất cả file PDF đã có trong chỉ mục. Tìm kiếm sẽ chạy tức thì.'); return; }
+
+            bgIndexing = true; cancelBgIndex = false;
+            if (btn) btn.innerText = '⏹️ Dừng lập chỉ mục';
+            let next = 0, done = 0;
+            const worker = async () => {
+                while (!cancelBgIndex) {
+                    const i = next++;
+                    if (i >= files.length) break;
+                    try { await ensureFileIndexed(files[i], { shouldStop: () => cancelBgIndex }); } catch (e) { console.warn(e); }
+                    done++;
+                    updateStatusUI(`⚡ Đang lập chỉ mục ${done}/${files.length} file...`);
+                }
+            };
+            await Promise.all(Array.from({ length: scanConcurrency() }, worker));
+            bgIndexing = false;
+            if (btn) btn.innerText = '⚡ Lập chỉ mục tất cả';
+            updateStatusUI(cancelBgIndex ? 'Đã dừng lập chỉ mục (phần đã quét vẫn được lưu).' : '✅ Đã lập chỉ mục xong, các lần sau mở lại sẽ không quét lại.');
         }
 
         async function saveSourceHandle(key, value) {
@@ -1049,7 +1239,10 @@
                 }
 
                 allMasterFiles = folderGranted ? await collectPdfFiles(sourceFolderHandle) : allMasterFiles;
-                pdfTextCache = {}; parsedPdfDocCache = {}; currentPdfDoc = null;
+                parsedPdfDocCache = {}; currentPdfDoc = null; currentPdfKey = '';
+                updateStatusUI('⏳ Đang nạp chỉ mục đã lưu...');
+                indexLoadPromise = loadIndexForFiles(allMasterFiles);
+                await indexLoadPromise;
 
                 if (accessibleExcelHandles.length) await parseExcelHandles(accessibleExcelHandles);
 
@@ -1080,6 +1273,12 @@
                     if (sourceFolderHandle) srcNames.push(`Folder: ${sourceFolderHandle.name}`);
                     if (excelFileHandles.length) srcNames.push(`${excelFileHandles.length} file Office`);
                     updateStatusUI(`📁 Nguồn đã ghi nhớ: ${srcNames.join(' · ')}.<br>👉 Bấm <b>[🔄 Làm mới dữ liệu]</b> để nạp.`);
+
+                    // Nếu trình duyệt còn nhớ quyền truy cập -> tự nạp luôn, không cần bấm gì
+                    let allGranted = true;
+                    if (sourceFolderHandle) allGranted = allGranted && await ensureHandlePermission(sourceFolderHandle, false);
+                    for (const h of excelFileHandles) allGranted = allGranted && await ensureHandlePermission(h, false);
+                    if (allGranted) await refreshSourceFiles(false, false);
                 }
             } catch(e) {}
         }
@@ -1105,6 +1304,7 @@
         function updateStatusUI(message = '') {
             const txt = [];
             if (allMasterFiles.length) txt.push(`<b>${allMasterFiles.length}</b> file PDF`);
+            if (allMasterFiles.length) txt.push(`⚡ chỉ mục <b>${countIndexedFiles()}/${allMasterFiles.length}</b>`);
             if (excelDataSheets.length) txt.push(`<b>${excelDataSheets.length}</b> sheet Excel`);
             if (wordDataFiles.length) txt.push(`<b>${wordDataFiles.length}</b> file Word/PPT`);
             const escapeStatus = value => String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
@@ -1182,9 +1382,10 @@
         function handleFolderSelect(event) {
             sourceFolderHandle = null; 
             allMasterFiles = Array.from(event.target.files).filter(file => file.name.toLowerCase().endsWith('.pdf') && !file.name.startsWith('~'));
-            pdfTextCache = {}; parsedPdfDocCache = {}; 
+            parsedPdfDocCache = {}; 
             configureDocumentTypeFilter(); applyAllFilters(); refreshAutocompleteSuggestions(); 
             updateStatusUI('Folder đã nạp xong.');
+            indexLoadPromise = loadIndexForFiles(allMasterFiles);
         }
 
         async function handleOfficeSelect(event) {
@@ -1238,82 +1439,8 @@
         }
 
         async function getPdfTextPages(file, onProgress, onBatch) {
-            // 🌟 Đổi tên cacheKey để ép hệ thống xóa bỏ bộ nhớ đệm (Cache) bị nhiễm "chữ ma" của lần trước
-            const cacheKey = `${file.name}_${file.size || 0}_${file.lastModified || 0}_v3_CleanGhost`;
-            if (pdfTextCache[cacheKey]) { if (onBatch) onBatch(pdfTextCache[cacheKey]); return pdfTextCache[cacheKey]; }
-
-            const cachedFromDb = await getCachedPdfText(cacheKey);
-            if (cachedFromDb && Array.isArray(cachedFromDb) && cachedFromDb.length > 0) {
-                pdfTextCache[cacheKey] = cachedFromDb;
-                if (onBatch) onBatch(cachedFromDb);
-                return cachedFromDb;
-            }
-
-            // 🌟 Dùng tài liệu RIÊNG cho việc quét (không dùng chung với khung xem) -> hết lỗi trắng trang
-            const arrayBuffer = await file.arrayBuffer();
-            const loadingTask = pdfjsLib.getDocument({
-                data: new Uint8Array(arrayBuffer),
-                ...PDF_JS_CONFIG
-            });
-            const pdf = await loadingTask.promise;
-            try {
-
-            const pageTexts = new Array(pdf.numPages);
-            const BATCH_SIZE = 12;
-
-            for (let start = 1; start <= pdf.numPages; start += BATCH_SIZE) {
-                if (cancelScanRequested) break;
-                const end = Math.min(pdf.numPages, start + BATCH_SIZE - 1);
-                const batchPromises = [];
-                for (let pageNum = start; pageNum <= end; pageNum++) {
-                    batchPromises.push(
-                        pdf.getPage(pageNum).then(async (page) => {
-                            try {
-                                const content = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
-                                const viewport = page.getViewport({ scale: 1.0 });
-                                
-                                // 🌟 BỘ LỌC CHỮ MA (GHOST TEXT FILTER): 
-                                // Quét tọa độ của từng chữ, nếu chữ nào bị giấu ngoài lề giấy -> XÓA SẠCH!
-                                const validItems = (content.items || []).filter(item => {
-                                    if (!item.str || item.str.trim() === '') return true; // Giữ lại khoảng trắng
-                                    
-                                    const x = item.transform[4];
-                                    const y = item.transform[5];
-                                    const scaleX = item.transform[0];
-                                    const scaleY = item.transform[3];
-                                    
-                                    // 1. Loại bỏ chữ bị bóp tỷ lệ tàng hình (scale gần = 0)
-                                    if (Math.abs(scaleX) < 0.01 && Math.abs(scaleY) < 0.01) return false;
-                                    
-                                    // 2. Loại bỏ chữ bị giấu tít ra ngoài mép tờ giấy (Tọa độ X âm, hoặc X lớn hơn chiều rộng giấy)
-                                    if (x < -150 || y < -150 || x > viewport.width + 150 || y > viewport.height + 150) return false;
-                                    
-                                    return true;
-                                });
-
-                                const fullText = validItems.map(item => item.str || '').join(' ');
-                                const lowerText = fullText.toLowerCase();
-                                return { pageNum, fullText, lowerText };
-                            } catch (err) {
-                                return { pageNum, fullText: '', lowerText: '' };
-                            }
-                        })
-                    );
-                }
-                const batchResults = await Promise.all(batchPromises);
-                batchResults.forEach(res => { pageTexts[res.pageNum - 1] = res; });
-                if (onBatch) onBatch(batchResults);   // 🌟 trả kết quả ngay từng đợt, không chờ quét hết file
-                if (onProgress) onProgress(end, pdf.numPages);
-                await new Promise(r => setTimeout(r, 10));
-            }
-
-            if (cancelScanRequested) return pageTexts.map(p => p || { pageNum: 0, fullText: '', lowerText: '' });
-            pdfTextCache[cacheKey] = pageTexts;
-            setCachedPdfText(cacheKey, pageTexts);
-            return pageTexts;
-            } finally {
-                try { loadingTask.destroy(); } catch (e) {}
-            }
+            const pages = await ensureFileIndexed(file, { onProgress, onBatch, shouldStop: () => cancelScanRequested });
+            return pages || [];
         }
 
         /* ================= QUẢN LÝ DANH SÁCH MODEL TÌM KIẾM ================= */
@@ -1542,6 +1669,7 @@
             isPdfScanning = true; 
             cancelScanRequested = false;
 
+            const modelPairs = activeModels.map(m => ({ m, mm: buildModelMatchers(m) })).filter(x => x.mm);
             const seenPages = new Set();
             const MAX_CARDS = 100;
             let cardCount = 0;
@@ -1551,10 +1679,7 @@
             const matchPage = (file, pageData) => {
                 if (!pageData || !pageData.lowerText) return null;
         // 1. Kiểm tra Model xuất hiện trên trang này
-        const matchedModelOnThisPage = activeModels.find(m => {
-            const mm = buildModelMatchers(m);
-            return mm && mm.test(pageData.lowerText, '');
-        });
+        const matchedModelOnThisPage = (modelPairs.find(x => x.mm.test(pageData.lowerText, '')) || {}).m;
         const isModelOnPage = !!matchedModelOnThisPage;
 
         // 2. Kiểm tra Từ khóa xuất hiện trên trang này
@@ -1738,39 +1863,69 @@
                 }
             };
 
-            const handleBatch = (pages) => {
+            const handleBatch = (file, pages) => {
                 if (session !== scanSessionId || cancelScanRequested) return;
                 for (const pageData of pages) {
                     if (cardCount >= MAX_CARDS) return;
                     if (!pageData || !pageData.pageNum) continue;
-                    const key = `${currentScanFile.name}_${pageData.pageNum}`;
+                    const key = `${file.webkitRelativePath || file.name}_${pageData.pageNum}`;
                     if (seenPages.has(key)) continue;
                     let item = null;
-                    try { item = matchPage(currentScanFile, pageData); } catch (e) { item = null; }
+                    try { item = matchPage(file, pageData); } catch (e) { item = null; }
                     if (!item) continue;
                     seenPages.add(key);
                     addMatchCard(item);
                 }
             };
 
-            let currentScanFile = null;
+            // Chờ nạp chỉ mục đã lưu (nếu đang nạp)
+            statusBar.innerHTML = `<span>⏳ Đang nạp chỉ mục đã lưu...</span>`;
+            await indexLoadPromise;
+            if (session !== scanSessionId) return;
 
-            for (let i = 0; i < sortedFiles.length; i++) {
-                if (cancelScanRequested || session !== scanSessionId) break;
-                if (cardCount >= MAX_CARDS) break;
-                const file = sortedFiles[i];
-                currentScanFile = file;
+            const totalFiles = sortedFiles.length;
+            const indexedFiles = sortedFiles.filter(f => hasIndex(f));
+            const pendingFiles = sortedFiles.filter(f => !hasIndex(f));
+            let doneFiles = 0;
+            const stopNow = () => cancelScanRequested || session !== scanSessionId || cardCount >= MAX_CARDS;
+            const scanStop = () => cancelScanRequested || session !== scanSessionId;
+            const stopBtn = `<button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+            const setStatus = (html) => { if (session === scanSessionId) statusBar.innerHTML = `<span>${html}</span>${stopBtn}`; };
 
-                const renderStatus = (done, total) => {
-                    if (session !== scanSessionId) return;
-                    statusBar.innerHTML = `<span>⚡ Đang quét PDF (${i+1}/${sortedFiles.length}): <b>${file.name.substring(0, 24)}...</b>${total ? ` ${done}/${total} trang` : ''} · Tìm thấy: ${cardCount}</span>
-                    <button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
+            // GIAI ĐOẠN 1: tìm tức thì trong chỉ mục đã có sẵn (không đọc lại PDF)
+            for (let i = 0; i < indexedFiles.length; i++) {
+                if (stopNow()) break;
+                const file = indexedFiles[i];
+                const entry = pdfIndex.get(fileIdxKey(file));
+                if (entry) handleBatch(file, entry.pages);
+                doneFiles++;
+                if (i % 8 === 7) {
+                    setStatus(`⚡ Đang tìm trong chỉ mục (${doneFiles}/${totalFiles}) · Tìm thấy: ${cardCount}`);
+                    await new Promise(r => setTimeout(r, 0));
+                }
+            }
+
+            // GIAI ĐOẠN 2: chỉ quét những file CHƯA có trong chỉ mục (quét song song, lưu lại cho lần sau)
+            if (pendingFiles.length && !stopNow()) {
+                let next = 0;
+                const worker = async () => {
+                    while (!stopNow()) {
+                        const idx = next++;
+                        if (idx >= pendingFiles.length) break;
+                        const file = pendingFiles[idx];
+                        const opts = {
+                            shouldStop: scanStop,
+                            onBatch: (pages) => handleBatch(file, pages),
+                            onProgress: (d, t) => setStatus(`⚡ Quét file chưa có chỉ mục (${doneFiles}/${totalFiles}): <b>${file.name.substring(0, 24)}</b> ${d}/${t} trang · Tìm thấy: ${cardCount}`)
+                        };
+                        try {
+                            let pages = await ensureFileIndexed(file, opts);
+                            if (!pages && !scanStop()) await ensureFileIndexed(file, opts);
+                        } catch (e) { console.warn('Lỗi quét file', file.name, e); }
+                        doneFiles++;
+                    }
                 };
-                renderStatus(0, 0);
-
-                try {
-                    await getPdfTextPages(file, renderStatus, handleBatch);
-                } catch (e) { console.warn('Lỗi quét file', file.name, e); }
+                await Promise.all(Array.from({ length: scanConcurrency() }, worker));
             }
 
             if (session !== scanSessionId) return;   // đã có lần tìm mới thay thế
@@ -1784,7 +1939,8 @@
                     : `<p style="text-align:center; margin-top:20px; line-height:1.6; color:#ddd;">❌ Không tìm thấy kết quả phù hợp cho từ khóa "${queryPdf}".</p>`;
             }
 
-            statusBar.innerHTML = cancelScanRequested ? `⏹️ Đã dừng quét. Tìm thấy ${cardCount} trang.` : `✅ Đã quét xong! Tìm thấy ${cardCount} trang.`;
+            statusBar.innerHTML = cancelScanRequested ? `⏹️ Đã dừng quét. Tìm thấy ${cardCount} trang.` : `✅ Xong! Tìm thấy ${cardCount} trang (${indexedFiles.length} file từ chỉ mục${pendingFiles.length ? `, ${pendingFiles.length} file mới quét và đã lưu` : ''}).`;
+            updateStatusUI();
             syncPreviewNavigator();
         }
         
