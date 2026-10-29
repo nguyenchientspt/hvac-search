@@ -203,6 +203,18 @@
 
         canvas { display: block; margin: 0 auto; background-color: #ffffff; }
         .highlight-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
+        /* Lớp chữ trong suốt phủ lên trang PDF để bôi đen / copy (chỉ nhận chuột khi bật chế độ Chọn chữ) */
+        .pdf-text-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; z-index: 5; pointer-events: none; line-height: 1; user-select: none; }
+        .pdf-text-layer span { position: absolute; white-space: pre; color: transparent; transform-origin: 0 0; font-family: Arial, sans-serif; }
+        .pdf-text-layer ::selection { background: rgba(0, 120, 215, 0.38); color: transparent; }
+        /* Khi đang bôi đen, vùng trống giữa các chữ phải rơi vào "mỏ neo" này (nằm sát đầu vùng chọn) thay vì làm vùng chọn nhảy tới hết trang */
+        .pdf-text-layer .endOfContent { display: block; position: absolute; left: 0; right: 0; top: 100%; bottom: 0; z-index: -1; cursor: default; user-select: none; }
+        .pdf-text-layer.selecting .endOfContent { top: 0; }
+        .pdf-scroll-container.select-mode { cursor: text; user-select: text; }
+        .pdf-scroll-container.select-mode .pdf-text-layer { pointer-events: auto; user-select: text; cursor: text; }
+        .pdf-scroll-container.select-mode canvas, .pdf-scroll-container.select-mode .page-indicator-label { user-select: none; }
+        .pdf-btn.mode-on { background: #0b7a3b; border-color: #35c46b; color: #fff; font-weight: bold; }
+        .viewer-toast { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); background: rgba(0,0,0,0.82); color: #fff; padding: 6px 14px; border-radius: 16px; font-size: 12px; z-index: 50; pointer-events: none; transition: opacity .25s; }
         .pdf-highlight-box { position: absolute; background-color: rgba(255, 224, 102, 0.28); border: 1px solid rgba(210, 160, 0, 0.72); border-radius: 2px; }
         
         /* Mây Đỏ: Điểm đang Next/Prev trúng tới */
@@ -421,6 +433,7 @@
                     <button class="pdf-btn" id="pdfSpecNextBtn" onclick="navigatePdfSpecRow(1)" disabled>Next ▶</button>
                 </div>
                 <div class="pdf-btn-group" id="pdfControls">
+                    <button class="pdf-btn" id="selectModeBtn" onclick="toggleSelectMode()" title="Nháy đúp chuột trái trên trang để đổi chế độ. Chế độ chọn chữ: giữ chuột và kéo để bôi đen, kéo xuống mép dưới thì trang tự cuộn theo. Esc để thoát.">✋ Kéo trang</button>
                     <button class="pdf-btn" onclick="rotateAll('left')">↺ Xoay trái 90°</button>
                     <button class="pdf-btn" onclick="rotateAll('right')">↻ Xoay phải 90°</button>
                     <button class="pdf-btn" onclick="zoomPdfAt(-0.15)">➖ Thu nhỏ</button>
@@ -4223,6 +4236,7 @@
                         </div>
                         <canvas id="canvas-page-${i}" data-rendered="false"></canvas>
                         <div class="highlight-layer" id="hl-layer-${i}"></div>
+                        <div class="pdf-text-layer" id="tl-layer-${i}"></div>
                     `;
                     fragment.appendChild(w);
                 }
@@ -4290,6 +4304,7 @@
                     liveCanvas.getContext('2d').drawImage(scratchCanvas, 0, 0);
 
                     liveCanvas.dataset.rendered = "true"; 
+                    { const tl = document.getElementById(`tl-layer-${pageNum}`); if (tl) { tl.replaceChildren(); if (pdfSelectMode) buildTextLayer(page, viewport, pageNum).catch(() => {}); } }
                     await drawHighlightsOnPage(page, viewport, pageNum);
                 } catch (err) {
                     if (err?.name !== 'RenderingCancelledException') {
@@ -4609,6 +4624,7 @@
             for (let i = 1; i <= currentPdfDoc.numPages; i++) {
                 const c = document.getElementById(`canvas-page-${i}`); 
                 if (c) c.dataset.rendered = "false";
+                const tlOld = document.getElementById(`tl-layer-${i}`); if (tlOld) tlOld.replaceChildren();
             }
             renderVisiblePages();
         }
@@ -4661,12 +4677,216 @@
             document.getElementById('officeZoomLevelText').textContent = `${Math.round(officeScale * 100)}%`;
         }
 
+        /* ================= CHẾ ĐỘ CHỌN CHỮ TRONG PDF (nháy đúp để bật/tắt, kéo xuống mép thì trang tự cuộn) ================= */
+        let pdfSelectMode = false;
+
+        async function buildTextLayer(page, viewport, pageNum) {
+            const layer = document.getElementById(`tl-layer-${pageNum}`);
+            if (!layer) return;
+            const token = (layer._tok = (layer._tok || 0) + 1);
+            const tc = await page.getTextContent({ normalizeWhitespace: true });
+            if (layer._tok !== token) return;
+
+            // 1) Mỗi mục chữ của PDF -> 1 span đặt đúng vị trí / cỡ chữ
+            const made = [];
+            for (const item of (tc.items || [])) {
+                if (!item.str || !item.str.trim()) continue;
+                const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
+                const fh = Math.hypot(tx[2], tx[3]);
+                if (!fh || !Number.isFinite(fh)) continue;
+                const angle = Math.atan2(tx[1], tx[0]);
+                const span = document.createElement('span');
+                span.textContent = item.str;
+                span.style.left = (tx[4] + fh * Math.sin(angle)) + 'px';
+                span.style.top = (tx[5] - fh * Math.cos(angle)) + 'px';
+                span.style.fontSize = fh + 'px';
+                made.push({ span, angle, fh, bx: tx[4], by: tx[5], target: (item.width || 0) * viewport.scale });
+            }
+            if (!made.length) { layer.replaceChildren(); return; }
+
+            // 2) SẮP LẠI THỨ TỰ THEO VỊ TRÍ NHÌN THẤY (dòng trên -> dưới, trong dòng trái -> phải).
+            //    Thứ tự gốc của PDF thường đi theo từng cột/nhóm nên bôi đen sẽ nhảy sang ô khác.
+            const bucket = new Map();
+            made.forEach(m => { const k = Math.round(m.angle * 20) / 20; bucket.set(k, (bucket.get(k) || 0) + 1); });
+            const domAngle = [...bucket.entries()].sort((x, y) => y[1] - x[1])[0][0];
+            const cs = Math.cos(domAngle), sn = Math.sin(domAngle);
+            const main = [], other = [];
+            made.forEach(m => {
+                if (Math.abs(Math.round(m.angle * 20) / 20 - domAngle) > 0.001) { other.push(m); return; }
+                m.u = m.bx * cs + m.by * sn;          // dọc theo dòng chữ
+                m.v = -m.bx * sn + m.by * cs;         // vuông góc (thứ tự dòng)
+                main.push(m);
+            });
+            main.sort((a, b) => a.v - b.v);
+            const lines = [];
+            main.forEach(m => {
+                const last = lines[lines.length - 1];
+                if (last && Math.abs(m.v - last.v) <= Math.max(2, Math.min(m.fh, last.fh) * 0.55)) last.items.push(m);
+                else lines.push({ v: m.v, fh: m.fh, items: [m] });
+            });
+
+            const frag = document.createDocumentFragment();
+            const sep = (text, ref) => {
+                const e = document.createElement('span');
+                e.textContent = text;
+                e.style.left = ref.span.style.left; e.style.top = ref.span.style.top; e.style.fontSize = '1px';
+                return e;
+            };
+            lines.forEach(line => {
+                line.items.sort((a, b) => a.u - b.u);
+                let prev = null;
+                line.items.forEach(m => {
+                    if (prev) {
+                        const gap = m.u - (prev.u + prev.target);
+                        // Cách xa = sang ô khác (Tab, dán vào Excel sẽ rơi vào cột kế bên); cách gần = dấu cách
+                        if (gap > prev.fh * 0.9) frag.appendChild(sep('\t', m));
+                        else if (gap > prev.fh * 0.12) frag.appendChild(sep(' ', m));
+                    }
+                    frag.appendChild(m.span);
+                    prev = m;
+                });
+                frag.appendChild(document.createElement('br'));
+            });
+            other.forEach(m => frag.appendChild(m.span));
+            const eoc = document.createElement('div');
+            eoc.className = 'endOfContent';
+            frag.appendChild(eoc);
+            layer._eoc = eoc;
+            layer.replaceChildren(frag);
+            if (document.querySelector('.pdf-text-layer.selecting')) layer.classList.add('selecting');
+
+            // 3) Khớp bề rộng từng span với bề rộng chữ thật (đo trước, ghi sau để không tính lại bố cục liên tục)
+            const widths = made.map(m => m.span.offsetWidth);
+            made.forEach((m, i) => {
+                const sx = (widths[i] > 0 && m.target > 0) ? m.target / widths[i] : 1;
+                m.span.style.transform = `rotate(${m.angle}rad) scaleX(${sx})`;
+            });
+        }
+
+        async function buildTextLayerForPageNum(i) {
+            const doc = currentPdfDoc;
+            if (!doc) return;
+            const page = await doc.getPage(i);
+            const rot = ((page.rotate || 0) + getPageRotation(i)) % 360;
+            const vp = page.getViewport({ scale: currentScale, rotation: rot });
+            await buildTextLayer(page, vp, i);
+        }
+
+        function showViewerToast(text) {
+            const host = document.getElementById('panelPdf');
+            if (!host) return;
+            let t = document.getElementById('viewerToast');
+            if (!t) { t = document.createElement('div'); t.id = 'viewerToast'; t.className = 'viewer-toast'; host.appendChild(t); }
+            t.textContent = text; t.style.opacity = '1';
+            clearTimeout(t._h); t._h = setTimeout(() => { t.style.opacity = '0'; }, 2200);
+        }
+
+        function setPdfSelectMode(on, silent) {
+            pdfSelectMode = !!on;
+            const c = document.getElementById('pdfScrollContainer');
+            if (c) c.classList.toggle('select-mode', pdfSelectMode);
+            const btn = document.getElementById('selectModeBtn');
+            if (btn) { btn.classList.toggle('mode-on', pdfSelectMode); btn.textContent = pdfSelectMode ? '🔤 Đang chọn chữ' : '✋ Kéo trang'; }
+            if (pdfSelectMode) {
+                if (currentPdfDoc) {
+                    for (let i = 1; i <= currentPdfDoc.numPages; i++) {
+                        const cv = document.getElementById(`canvas-page-${i}`), tl = document.getElementById(`tl-layer-${i}`);
+                        if (cv && tl && cv.dataset.rendered === 'true' && !tl.firstChild) buildTextLayerForPageNum(i).catch(() => {});
+                    }
+                }
+                if (!silent) showViewerToast('🔤 Chế độ chọn chữ: giữ chuột và kéo để bôi đen (theo dòng nhìn thấy), Ctrl+C để copy. Nháy đúp hoặc Esc để thoát.');
+            } else {
+                const sel = window.getSelection && window.getSelection();
+                if (sel) sel.removeAllRanges();
+                if (!silent) showViewerToast('✋ Chế độ kéo trang');
+            }
+        }
+        function toggleSelectMode() { setPdfSelectMode(!pdfSelectMode); }
+
+        function initSelectMode() {
+            const c = document.getElementById('pdfScrollContainer');
+            if (!c) return;
+            const st = { down: false, x: 0, y: 0, raf: 0 };
+
+            c.addEventListener('dblclick', (e) => {
+                if (!currentPdfDoc || c.querySelector('.office-sheet-wrap')) return;
+                if (e.target.closest && e.target.closest('.page-indicator-label, button, input')) return;
+                e.preventDefault();
+                toggleSelectMode();
+            });
+            window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pdfSelectMode) setPdfSelectMode(false); });
+
+            const caretAt = (x, y) => {
+                if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); return r ? { node: r.startContainer, offset: r.startOffset } : null; }
+                if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(x, y); return p ? { node: p.offsetNode, offset: p.offset } : null; }
+                return null;
+            };
+
+            const tick = () => {
+                if (!st.down) return;
+                const r = c.getBoundingClientRect();
+                const edge = 50;
+                const speed = d => Math.min(48, 3 + d * 0.45);
+                let dx = 0, dy = 0;
+                if (st.y > r.bottom - edge) dy = speed(st.y - (r.bottom - edge));
+                else if (st.y < r.top + edge) dy = -speed((r.top + edge) - st.y);
+                if (st.x > r.right - edge) dx = speed(st.x - (r.right - edge));
+                else if (st.x < r.left + edge) dx = -speed((r.left + edge) - st.x);
+                if (dx || dy) {
+                    c.scrollLeft += dx; c.scrollTop += dy;
+                    // Trang cuộn dưới con trỏ đứng yên => kéo dài vùng chọn tới chữ đang nằm dưới con trỏ
+                    const px = Math.max(r.left + 3, Math.min(r.right - 3, st.x));
+                    const py = Math.max(r.top + 3, Math.min(r.bottom - 3, st.y));
+                    const sel = window.getSelection();
+                    const pos = caretAt(px, py);
+                    if (sel && sel.anchorNode && pos && pos.node && pos.node.nodeType === 3 && pos.node.parentElement && pos.node.parentElement.closest('.pdf-text-layer > span')) {
+                        try { sel.extend(pos.node, pos.offset); } catch (err) {}
+                    }
+                }
+                st.raf = requestAnimationFrame(tick);
+            };
+
+            c.addEventListener('mousedown', (e) => {
+                if (!pdfSelectMode || e.button !== 0 || c.querySelector('.office-sheet-wrap')) return;
+                if (e.target.closest && e.target.closest('.page-indicator-label, button')) return;
+                st.down = true; st.x = e.clientX; st.y = e.clientY;
+                cancelAnimationFrame(st.raf); st.raf = requestAnimationFrame(tick);
+            });
+            window.addEventListener('mousemove', (e) => { if (st.down) { st.x = e.clientX; st.y = e.clientY; } });
+            const setSelecting = on => document.querySelectorAll('.pdf-text-layer').forEach(l => l.classList.toggle('selecting', on));
+            c.addEventListener('mousedown', (e) => {
+                if (pdfSelectMode && e.button === 0 && !c.querySelector('.office-sheet-wrap')) setSelecting(true);
+            }, true);
+            window.addEventListener('mouseup', () => { st.down = false; cancelAnimationFrame(st.raf); setSelecting(false); });
+            window.addEventListener('blur', () => setSelecting(false));
+
+            // Giữ "mỏ neo" ngay cạnh chữ đang là đầu vùng chọn
+            document.addEventListener('selectionchange', () => {
+                if (!pdfSelectMode) return;
+                const sel = window.getSelection();
+                if (!sel || !sel.focusNode) return;
+                const el = sel.focusNode.nodeType === 3 ? sel.focusNode.parentNode : sel.focusNode;
+                const span = el && el.closest ? el.closest('.pdf-text-layer > span') : null;
+                if (!span) return;
+                const layer = span.parentNode, eoc = layer._eoc;
+                if (!eoc) return;
+                let backward = false;
+                if (sel.anchorNode) {
+                    if (sel.anchorNode === sel.focusNode) backward = sel.focusOffset < sel.anchorOffset;
+                    else backward = !!(sel.anchorNode.compareDocumentPosition(sel.focusNode) & Node.DOCUMENT_POSITION_PRECEDING);
+                }
+                const ref = backward ? span : span.nextSibling;
+                if (ref !== eoc && eoc.nextSibling !== ref) layer.insertBefore(eoc, ref);
+            });
+        }
+
         function initPanAndZoom() {
             const c = document.getElementById('pdfScrollContainer'); 
             let isPan = false; let sx, sy, sl, st;
 
             c.addEventListener('mousedown', (e) => { 
                 if (e.button !== 0 && e.button !== 1) return; 
+                if (pdfSelectMode && !c.querySelector('.office-sheet-wrap')) return;   // chế độ chọn chữ: kéo chuột = bôi đen
                 if (e.target.tagName === 'TD' || e.target.tagName === 'TH') return;
                 isPan = true; c.classList.add('grabbing'); 
                 sx = e.pageX - c.offsetLeft; sy = e.pageY - c.offsetTop; 
@@ -4717,6 +4937,7 @@
 
         initResizers(); 
         initPanAndZoom();
+        initSelectMode();
     </script>
 </body>
 </html>
