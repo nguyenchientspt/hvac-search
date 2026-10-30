@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>HVAC Smart Search - PDF & OFFICE</title>
+    <title>HVAC Smart Search </title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
@@ -638,9 +638,17 @@
             return !!p && ((p.base || p.id) === 'p8' || normalizeExcelSearchText(p.name || '').startsWith('kich thuoc'));
         }
 // Khóa tìm = khóa gốc (bỏ chữ dàn nóng/lạnh) + từ đồng nghĩa trong từ điển (vd. kích thước = dimensions/dimentions)
+        const _effKeyCache = new Map();
         function effectiveParamKeys(p) {
+            const cacheKey = (p.keys || []).join('|');
+            if (_effKeyCache.has(cacheKey)) return _effKeyCache.get(cacheKey);
             const out = new Set();
             (p.keys || []).forEach(kw => {
+                // Thuật ngữ Anh tương ứng + cách sắp xếp lại có nghĩa của tiêu chí (ống kết nối <-> kết nối ống <-> piping connections)
+                const baseKw = String(kw).toLowerCase().replace(SIDE_WORDS_RE, ' ').replace(/\s+/g, ' ').trim();
+                const gUnits = viUnits(baseKw);
+                glossaryEnglishVariants(gUnits, webCachedOpts(gUnits)).forEach(t => { const n = normalizeExcelSearchText(t); if (n) out.add(n); });
+                viOrderVariants(baseKw).forEach(t => { const n = normalizeExcelSearchText(t); if (n) out.add(n); });
                 const n = normalizeExcelSearchText(kw).replace(SIDE_WORDS_RE, ' ').replace(/\s+/g, ' ').trim();
                 if (!n) return;
                 out.add(n);
@@ -649,7 +657,9 @@
                     if (normalizeExcelSearchText(k) === n) list.forEach(x => { const nx = normalizeExcelSearchText(x); if (nx.length > 2) out.add(nx); });
                 }
             });
-            return [...out];
+            const result = [...out];
+            _effKeyCache.set(cacheKey, result);
+            return result;
         }
 
         function isRowMatchCheckedParam(normalizedLabel, p) {
@@ -818,30 +828,241 @@
             // Nếu không có dấu tiếng Việt thì không cần dịch
             if (clean.length < 2 || !/[à-ỹá-ýạ-ỵả-ỷã-ỹă-ắâ-ấđ]/i.test(clean)) return null;
             if (translationCache[clean]) return translationCache[clean];
+            const r = await webLookup(clean, 'vi|en');   // dùng chung bộ nhớ đệm / bộ học từ
+            if (r && r[0]) { translationCache[clean] = r[0]; return r[0]; }
+            return null;
+        }
 
+        /* ================= HIỂU THỨ TỰ TỪ & DỊCH THUẬT NGỮ HVAC ================= */
+        /* Từ điển thuật ngữ Việt -> Anh (mỗi mục là 1 "từ ghép" nguyên khối, không bị tách khi đảo thứ tự) */
+        const VI_GLOSSARY = {
+            "ống": ["piping", "pipe"], "đường ống": ["piping", "pipe"], "ống đồng": ["copper pipe", "piping"], "ống gió": ["duct"],
+            "kết nối": ["connection", "connections"], "đấu nối": ["connection", "connections"],
+            "công suất": ["capacity", "power"], "làm lạnh": ["cooling"], "làm mát": ["cooling"], "lạnh": ["cooling"], "sưởi": ["heating"],
+            "điện năng": ["power input", "power consumption"], "tiêu thụ": ["consumption", "input"], "điện": ["electric", "electrical", "power"],
+            "lưu lượng": ["flow", "air flow"], "gió": ["air", "air flow"], "quạt": ["fan"], "tốc độ": ["speed"],
+            "áp suất": ["pressure"], "tĩnh": ["static"], "độ ồn": ["noise", "sound level", "spl"], "âm thanh": ["sound"],
+            "kích thước": ["dimensions", "dimension"], "trọng lượng": ["weight"], "khối lượng": ["weight", "mass"],
+            "môi chất": ["refrigerant"], "môi chất lạnh": ["refrigerant"], "khối lượng nạp": ["refrigerant charge", "charge"], "nạp": ["charge"],
+            "dàn nóng": ["outdoor unit", "outdoor"], "dàn lạnh": ["indoor unit", "indoor"], "cụm nóng": ["outdoor unit"], "cụm lạnh": ["indoor unit"],
+            "máy nén": ["compressor"], "bơm": ["pump"], "nước xả": ["drain"], "nước ngưng": ["condensate", "drain"], "bơm nước xả": ["drain pump"], "nước": ["water"],
+            "nguồn điện": ["power supply"], "điện áp": ["voltage"], "dòng điện": ["current"], "hiệu suất": ["efficiency"],
+            "lắp đặt": ["installation"], "bảo dưỡng": ["maintenance"], "điều khiển": ["controller", "control"], "từ xa": ["remote"],
+            "chiều dài": ["length"], "độ cao": ["height"], "chênh lệch độ cao": ["height difference", "elevation difference"],
+            "tối đa": ["max", "maximum"], "tối thiểu": ["min", "minimum"], "định mức": ["rated", "nominal"],
+            "loại": ["type"], "màu": ["color"], "vỏ máy": ["casing"], "nhiệt độ": ["temperature"], "độ ẩm": ["humidity"],
+            "bộ chia": ["refnet joint", "refnet header", "refnet", "branch kit", "branch pipe", "distributive piping", "multi connection"],
+            "bộ chia gas": ["refnet joint", "refnet header", "refnet", "branch kit", "branch pipe", "distributive piping", "multi connection"],
+            "lỏng": ["liquid"], "hơi": ["gas"], "khí": ["gas", "air"], "dây": ["wire", "cable"], "dây điện": ["wiring", "electric wire"],
+            "bộ lọc": ["filter"], "lọc": ["filter"], "cánh": ["louver", "vane"], "cảm biến": ["sensor"], "mã lỗi": ["error code"]
+        };
+        const _ntKey = t => removeVietnameseTones(String(t).toLowerCase()).replace(/\s+/g, ' ').trim();
+        let _viGlossNT = null, _viLex = null;
+        function viGlossNT() {
+            if (_viGlossNT) return _viGlossNT;
+            _viGlossNT = {};
+            Object.entries(VI_GLOSSARY).forEach(([k, v]) => { _viGlossNT[_ntKey(k)] = v; });
+            return _viGlossNT;
+        }
+        function viLexicon() {
+            if (_viLex) return _viLex;
+            _viLex = new Set();
+            const add = t => { const n = _ntKey(t), c = n.split(' ').length; if (c >= 2 && c <= 4) _viLex.add(n); };
+            Object.keys(VI_GLOSSARY).forEach(add);
+            Object.entries(hvacDictionary).forEach(([k, list]) => { add(k); list.forEach(add); });
+            return _viLex;
+        }
+        /* Tách câu thành các "đơn vị từ": từ ghép nằm trong từ điển (kết nối, làm lạnh, công suất...) được giữ NGUYÊN khối */
+        function viUnits(text) {
+            const toks = String(text || '').toLowerCase().replace(/\([^)]*\)/g, ' ').split(/\s+/).filter(Boolean);
+            const nt = toks.map(t => removeVietnameseTones(t));
+            const lex = viLexicon();
+            const units = [];
+            for (let i = 0; i < toks.length;) {
+                let took = 0;
+                for (let n = Math.min(4, toks.length - i); n >= 2; n--) {
+                    if (lex.has(nt.slice(i, i + n).join(' '))) { units.push(toks.slice(i, i + n).join(' ')); took = n; break; }
+                }
+                if (!took) { units.push(toks[i]); took = 1; }
+                i += took;
+            }
+            return units;
+        }
+        function _permutations(arr, cap) {
+            const out = [];
+            const rec = (cur, rest) => {
+                if (out.length >= cap) return;
+                if (!rest.length) { out.push(cur); return; }
+                rest.forEach((x, i) => rec([...cur, x], [...rest.slice(0, i), ...rest.slice(i + 1)]));
+            };
+            rec([], arr);
+            return out;
+        }
+        function _orderings(units) {
+            if (units.length < 2) return [units];
+            if (units.length <= 3) return _permutations(units, 24);
+            // 4-5 đơn vị: chỉ đảo đầu-cuối, xoay vòng, đổi chỗ 2 đơn vị liền nhau (tránh bùng nổ tổ hợp vô nghĩa)
+            const res = [units, [...units].reverse()];
+            for (let r = 1; r < units.length; r++) res.push([...units.slice(r), ...units.slice(0, r)]);
+            for (let i = 0; i < units.length - 1; i++) { const c = [...units]; [c[i], c[i + 1]] = [c[i + 1], c[i]]; res.push(c); }
+            return res;
+        }
+        function _isViQuery(text, units) {
+            if (/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(text)) return true;
+            const g = viGlossNT();
+            return units.some(u => g[_ntKey(u)]);   // gõ không dấu: "ong ket noi"
+        }
+        /* Các cách sắp xếp lại thứ tự CÓ NGHĨA: đổi chỗ các từ ghép nguyên khối ("ống kết nối" <-> "kết nối ống"),
+           không bao giờ tách từ ghép nên không ra "nối kết ống" */
+        function viOrderVariants(text) {
+            const units = viUnits(text);
+            if (units.length < 2 || units.length > 5 || !_isViQuery(text, units)) return [];
+            const orig = units.join(' ');
+            return [...new Set(_orderings(units).map(u => u.join(' ')))].filter(v => v !== orig);
+        }
+        /* Dịch từng đơn vị sang thuật ngữ tiếng Anh rồi ghép: kết nối ống -> pipe connection / piping connections ... */
+        function glossaryEnglishVariants(units, extra) {
+            if (!units || !units.length) return [];
+            const g = viGlossNT();
+            const opts = units.map(u => g[_ntKey(u)] || (extra && extra[_ntKey(u)]) || null);
+            if (opts.some(o => !o)) return [];
+            const out = new Set();
+            // tiếng Việt đứng sau bổ nghĩa cho từ đứng trước (kết nối ống) => tiếng Anh thường đảo ngược (pipe connection): thử ngược trước
+            const orders = units.length <= 3 ? _orderings(units.map((_, i) => i)) : [units.map((_, i) => units.length - 1 - i), units.map((_, i) => i)];
+            const sorted = orders.slice().sort((a, b) => {
+                const rev = x => x.every((v, i) => v === units.length - 1 - i) ? 0 : 1;
+                return rev(a) - rev(b);
+            });
+            for (const ord of sorted) {
+                let combos = [[]];
+                ord.forEach(idx => {
+                    const next = [];
+                    combos.forEach(c => opts[idx].slice(0, 2).forEach(o => next.push([...c, o])));
+                    combos = next;
+                });
+                combos.forEach(c => out.add(c.join(' ')));
+                if (out.size >= 40) break;
+            }
+            return [...out];
+        }
+
+        /* ================= TRA THÊM TỪ SÁT NGHĨA TRÊN WEB (khi có mạng) + HỌC DẦN ================= */
+        /* Chỉ gửi TỪ KHÓA bạn gõ (không gửi nội dung tài liệu). Kết quả được lưu lại trong máy nên lần sau dùng cả khi mất mạng. */
+        const WEB_TERMS_KEY = 'HVACSearch_WebTerms_v1';
+        let webTermCache = {};
+        try { webTermCache = JSON.parse(localStorage.getItem(WEB_TERMS_KEY) || '{}') || {}; } catch (e) { webTermCache = {}; }
+        let _webSaveTimer = null;
+        function saveWebTerms() {
+            clearTimeout(_webSaveTimer);
+            _webSaveTimer = setTimeout(() => {
+                try {
+                    const keys = Object.keys(webTermCache);
+                    if (keys.length > 1500) keys.sort((a, b) => (webTermCache[a].t || 0) - (webTermCache[b].t || 0)).slice(0, keys.length - 1200).forEach(k => delete webTermCache[k]);
+                    localStorage.setItem(WEB_TERMS_KEY, JSON.stringify(webTermCache));
+                } catch (e) {}
+            }, 400);
+        }
+        const WEB_STOP = new Set(['the', 'of', 'a', 'an', 'and', 'or', 'to', 'in', 'on', 'for', 'is', 'are', 'it', 'by', 'with', 'at']);
+        function cleanWebTerm(t, source) {
+            if (!t || typeof t !== 'string') return '';
+            let x = t.toLowerCase().replace(/<[^>]*>/g, ' ').replace(/[“”"']/g, '').replace(/[.。]+$/, '').replace(/\s+/g, ' ').replace(/^(the|a|an)\s+/, '').trim();
+            if (!x || x.length < 3 || x.length > 60) return '';
+            if (/mymemory|http|www\.|@|translated/.test(x)) return '';
+            const words = x.split(' ');
+            if (words.length > 6 || words.every(w => WEB_STOP.has(w))) return '';
+            if (x === String(source || '').toLowerCase().trim()) return '';
+            return x;
+        }
+        // Tra 1 cụm từ (vi|en hoặc en|vi). Trả về tối đa 4 cách dịch, tốt nhất đứng đầu
+        async function webLookup(text, langpair) {
+            const q = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
+            if (q.length < 2) return [];
+            const key = langpair + '|' + q;
+            const hit = webTermCache[key];
+            if (hit) {
+                const ttl = (hit.terms && hit.terms.length) ? 30 * 86400000 : 86400000;
+                if (Date.now() - (hit.t || 0) < ttl) return hit.terms || [];
+            }
+            if (typeof navigator !== 'undefined' && navigator.onLine === false) return (hit && hit.terms) || [];
             try {
                 const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 2200); // Tối đa 2.2 giây để không làm đơ web
-
-                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=vi|en`;
-                const res = await fetch(url, { signal: controller.signal });
-                clearTimeout(timeoutId);
-
-                if (res.ok) {
-                    const data = await res.json();
-                    let trans = data.responseData?.translatedText;
-                    if (trans && typeof trans === 'string') {
-                        trans = trans.trim().toLowerCase();
-                        if (!trans.includes('mymemory') && trans !== clean) {
-                            translationCache[clean] = trans;
-                            return trans;
-                        }
-                    }
-                }
+                const timer = setTimeout(() => controller.abort(), 2500);
+                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=${langpair}`, { signal: controller.signal });
+                clearTimeout(timer);
+                if (!res.ok) return (hit && hit.terms) || [];
+                const data = await res.json();
+                const cands = [];
+                const main = cleanWebTerm(data.responseData && data.responseData.translatedText, q);
+                if (main) cands.push(main);
+                (data.matches || []).filter(m => Number(m.match) >= 0.5).sort((a, b) => Number(b.match) - Number(a.match)).forEach(m => {
+                    const c = cleanWebTerm(m.translation, q);
+                    if (c) cands.push(c);
+                });
+                const terms = [...new Set(cands)].slice(0, 4);
+                webTermCache[key] = { terms, t: Date.now() };
+                _effKeyCache.clear();            // tiêu chí spec dùng lại từ mới học được
+                saveWebTerms();
+                return terms;
             } catch (e) {
-                // Mất mạng hoặc timeout thì tự động bỏ qua
+                return (hit && hit.terms) || [];
             }
-            return null;
+        }
+        // Đọc từ đã học (không cần mạng): thuật ngữ Anh cho các từ chưa có trong từ điển gốc
+        function webCachedOpts(units) {
+            const out = {};
+            const g = viGlossNT();
+            (units || []).forEach(u => {
+                const k = _ntKey(u);
+                if (g[k]) return;
+                const hit = webTermCache['vi|en|' + String(u).toLowerCase().trim()];
+                if (hit && hit.terms && hit.terms.length) out[k] = hit.terms.slice(0, 2);
+            });
+            return out;
+        }
+        // Gom từ sát nghĩa: cụm gốc, từng từ chưa biết, và (nếu gõ tiếng Anh) nghĩa tiếng Việt
+        async function webEnrichTerms(cleanRaw, units) {
+            const out = { terms: [], unitOpts: {} };
+            const g = viGlossNT();
+            const isVi = _isViQuery(cleanRaw, units);
+            const tasks = [];
+            if (isVi) {
+                tasks.push(webLookup(cleanRaw, 'vi|en'));
+                units.filter(u => !g[_ntKey(u)] && u.length >= 3 && !/^[a-z]+\d/.test(u)).slice(0, 4).forEach(u => tasks.push(webLookup(u, 'vi|en')));
+            } else if (/^[a-z][a-z\s\-]{2,}$/i.test(cleanRaw) && !/\d/.test(cleanRaw)) {
+                tasks.push(webLookup(cleanRaw, 'en|vi'));
+            }
+            if (tasks.length) await Promise.race([Promise.allSettled(tasks), new Promise(r => setTimeout(r, 2800))]);
+            // đọc lại từ bộ nhớ đệm (có thể đã có kết quả từ lần trước, kể cả khi đang offline)
+            if (isVi) {
+                (webTermCache['vi|en|' + cleanRaw] || {}).terms && out.terms.push(...webTermCache['vi|en|' + cleanRaw].terms);
+                out.unitOpts = webCachedOpts(units);
+            } else {
+                const hit = webTermCache['en|vi|' + cleanRaw];
+                if (hit && hit.terms) out.terms.push(...hit.terms);
+            }
+            return out;
+        }
+
+        /* Khớp thông minh: từ khóa nhiều ý ("bộ chia" + "dàn nóng") => trang phải có ĐỦ các ý (mỗi ý ở bất kỳ cách gọi nào:
+           refnet joint, outdoor unit...) hoặc có nguyên cụm. Không còn khớp trang chỉ có 1 ý (vd. chỉ có "dàn nóng"). */
+        function matchQueryTerms(terms, text, norm) {
+            const N = norm || (x => x);
+            if (!terms || !terms.length || !text) return [];
+            const has = t => t && text.includes(N(t));
+            const groups = terms.groups;
+            if (!groups || groups.length < 2) return terms.filter(has);
+            const full = (terms.full || []).filter(has);
+            if (full.length) return full;
+            const hard = groups.filter(g => !g.soft);
+            const need = hard.length ? hard : groups;
+            const found = [];
+            for (const g of need) {
+                const hits = g.alts.filter(has);
+                if (!hits.length) return [];
+                found.push(...hits);
+            }
+            groups.filter(g => g.soft && !need.includes(g)).forEach(g => g.alts.filter(has).forEach(t => found.push(t)));
+            return [...new Set(found)];
         }
 
         async function expandBilingualTermsFast(query) {
@@ -855,6 +1076,22 @@
             if (rawNoTone !== cleanRaw) primaryTerms.push(rawNoTone);
 
             let synonymTerms = [];
+
+            // 🌟 0. HIỂU THỨ TỰ TỪ: "ống kết nối" cũng là "kết nối ống" (chỉ đảo các từ ghép nguyên khối, không đảo ra cụm vô nghĩa)
+            const viForms = [cleanRaw, ...viOrderVariants(cleanRaw)];
+            const fullSet = new Set();
+            viForms.slice(1).forEach(v => {
+                primaryTerms.push(v);
+                const vn = removeVietnameseTones(v);
+                if (vn !== v) primaryTerms.push(vn);
+            });
+            // Thuật ngữ tiếng Anh tương ứng (vd. piping connections) lấy từ từ điển thuật ngữ, không cần mạng
+            const _units = viUnits(cleanRaw);
+            // 🌐 Tra thêm từ sát nghĩa trên web nếu có mạng (kết quả được lưu lại để dùng cả khi mất mạng)
+            let _web = { terms: [], unitOpts: {} };
+            try { _web = await webEnrichTerms(cleanRaw, _units); } catch (e) {}
+            glossaryEnglishVariants(_units, _web.unitOpts).forEach(t => { synonymTerms.push(t); fullSet.add(t); });
+            _web.terms.forEach(t => { synonymTerms.push(t); fullSet.add(t); const tn = removeVietnameseTones(t); if (tn !== t) { synonymTerms.push(tn); fullSet.add(tn); } });
 
             // 🌟 1. TỰ ĐỘNG DỊCH TỪ KHÓA BẤT KỲ SANG TIẾNG ANH
             const autoEn = await autoTranslateViToEn(cleanRaw);
@@ -875,12 +1112,21 @@
                 if (isSpecificPower && (k === "công suất" || k === "capacity")) continue;
 
                 const kNoTone = removeVietnameseTones(k);
-                const isMatch = cleanRaw.includes(k) || rawNoTone.includes(kNoTone) ||
-                                list.some(item => cleanRaw === item || rawNoTone === removeVietnameseTones(item));
+                const isMatch = viForms.some(f => {
+                    const fNoTone = removeVietnameseTones(f);
+                    return f.includes(k) || fNoTone.includes(kNoTone) ||
+                           list.some(item => f === item || fNoTone === removeVietnameseTones(item));
+                });
                 
                 if (isMatch) {
+                    // Khớp CẢ CÂU (không chỉ một phần của câu) => được coi là cụm nguyên câu
+                    const isWhole = viForms.some(f => {
+                        const fn = removeVietnameseTones(f);
+                        return f === k || fn === kNoTone || list.some(item => f === item || fn === removeVietnameseTones(item));
+                    });
                     list.forEach(t => {
                         const tLower = t.toLowerCase();
+                        if (isWhole) { fullSet.add(tLower); fullSet.add(removeVietnameseTones(tLower)); }
                         if (isSpecificPower && (tLower === "công suất" || tLower === "capacity" || tLower === "cong suat")) return;
                         if (!synonymTerms.includes(tLower)) synonymTerms.push(tLower);
                         const tNoTone = removeVietnameseTones(tLower);
@@ -889,9 +1135,31 @@
                 }
             }
 
-            const allTerms = [...new Set([...primaryTerms, ...synonymTerms])]
+            primaryTerms.forEach(t => fullSet.add(t));
+            if (autoEn) { fullSet.add(autoEn); fullSet.add(removeVietnameseTones(autoEn)); }
+
+            // Mỗi "ý" trong câu (bộ chia / dàn nóng ...) có nhóm cách gọi riêng, gồm tiếng Việt, tiếng Anh, từ điển HVAC, từ tra web
+            const _gl = viGlossNT();
+            const groups = _units.map(u => {
+                const ntU = _ntKey(u);
+                const alts = new Set();
+                let mapped = false;
+                const add = x => { const t = String(x || '').toLowerCase().trim(); if (t.length >= 2) { alts.add(t); const n = removeVietnameseTones(t); if (n !== t) alts.add(n); } };
+                add(u);
+                (_gl[ntU] || []).forEach(x => { add(x); mapped = true; });
+                ((_web.unitOpts || {})[ntU] || []).forEach(x => { add(x); mapped = true; });
+                for (const [k, list] of Object.entries(hvacDictionary)) {
+                    if (_ntKey(k) === ntU || list.some(it => _ntKey(it) === ntU)) { add(k); list.forEach(add); mapped = true; }
+                }
+                return { unit: u, alts: [...alts], soft: !mapped };
+            });
+            const groupAlts = groups.flatMap(g => g.alts);
+
+            const allTerms = [...new Set([...primaryTerms, ...synonymTerms, ...groupAlts])]
                 .filter(t => t && t.length >= 2)
                 .sort((a, b) => b.length - a.length);
+            allTerms.groups = groups;
+            allTerms.full = [...fullSet].filter(t => t && t.length >= 2).sort((a, b) => b.length - a.length);
 
             return allTerms;
         }
@@ -1900,7 +2168,7 @@
         // 2. Kiểm tra Từ khóa xuất hiện trên trang này
         const hasExactFull = (exactFullQuery && pageData.lowerText.includes(exactFullQuery)) || 
                              (cleanQuery && pageData.lowerText.includes(cleanQuery));
-        const matchedTerms = queryTerms.filter(t => pageData.lowerText.includes(t));
+        const matchedTerms = matchQueryTerms(queryTerms, pageData.lowerText).sort((a, b) => b.length - a.length);
         const hasQuery = matchedTerms.length > 0;
         if (isModelOnPage) matchStats.model++;
         if (hasQuery || hasExactFull) matchStats.query++;
@@ -2178,7 +2446,9 @@
 
         /* ================= TÌM TỪ KHÓA TRONG OFFICE (hiển thị chung tab Preview) ================= */
         async function searchOfficeInto(box, query, models) {
-            const terms = [...new Set((await expandBilingualTermsFast(query)).map(normalizeExcelSearchText).filter(Boolean))];
+            const _qTerms = await expandBilingualTermsFast(query);
+            const terms = [...new Set(_qTerms.map(normalizeExcelSearchText).filter(Boolean))];
+            const officeMatch = normText => { const m = matchQueryTerms(_qTerms, normText, normalizeExcelSearchText); return m.length ? normalizeExcelSearchText(m.sort((a, b) => b.length - a.length)[0]) : null; };
             const cleanModels = (models || []).map(compactModelCode).filter(Boolean);
             let excelHits = 0, wordHits = 0;
             const MAX_OFFICE = 30;
@@ -2243,7 +2513,7 @@
                             const rowLabel = getRowSpecLabel(matrix, r, loc.col);
                             if (!rowLabel || invalidValueTexts.includes(rowLabel.toLowerCase())) continue;
 
-                            const matchedTerm = terms.find(t => normalizeExcelSearchText(rowLabel).includes(t));
+                            const matchedTerm = officeMatch(normalizeExcelSearchText(rowLabel));
                             if (matchedTerm) {
                                 excelHits++;
                                 previewHits.push({ type: 'excel', sheetName: sheet.sheetName, matrix, sheet, rowIdx: loc.row, colIdx: loc.col, headerRow: r, specRows: [r], searchTerm: matchedTerm });
@@ -2260,7 +2530,7 @@
                         for (let c = 0; c < Math.min(row.length, 40); c++) {
                             const cellVal = String(row[c] || '').trim();
                             if (!cellVal) continue;
-                            const matchedTerm = terms.find(t => normalizeExcelSearchText(cellVal).includes(t));
+                            const matchedTerm = officeMatch(normalizeExcelSearchText(cellVal));
                             if (matchedTerm) {
                                 excelHits++;
                                 previewHits.push({ type: 'excel', sheetName: sheet.sheetName, matrix, sheet, rowIdx: r, colIdx: c, headerRow: r, specRows: [r], searchTerm: matchedTerm });
@@ -2277,7 +2547,7 @@
                 if (!inSelectedDocFolder(doc.relPath)) continue;
                 const fullText = doc.text || '';
                 const lowerText = fullText.toLowerCase();
-                const matchedTerm = terms.find(t => lowerText.includes(t));
+                const matchedTerm = officeMatch(normalizeExcelSearchText(lowerText));
                 if (!matchedTerm) continue;
                 if (cleanModels.length && !cleanModels.some(m => lowerText.replace(/[^a-z0-9]/g, '').includes(m))) continue;
                 wordHits++;
@@ -2377,7 +2647,9 @@
                 activeModels = models;
                 recordSearchHistory(models, query);
 
-                const queryTerms = (await expandBilingualTermsFast(query)).map(x => String(x).toLowerCase());
+                const _rawTerms = await expandBilingualTermsFast(query);
+                const queryTerms = _rawTerms.map(x => String(x).toLowerCase());
+                queryTerms.groups = _rawTerms.groups; queryTerms.full = _rawTerms.full;
                 const exactFull = query.toLowerCase().trim();
                 const cleanQuery = exactFull.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
                 const modelMatchers = models.map(m => ({ m, mm: buildModelMatchers(m) })).filter(x => x.mm);
@@ -2420,7 +2692,7 @@
                         const mHit = modelMatchers.find(x => x.mm.test(p.lowerText, ''));
                         const hasClean = !!cleanQuery && p.lowerText.includes(cleanQuery);
                         const hasExact = hasClean || (!!exactFull && p.lowerText.includes(exactFull));
-                        const mt = queryTerms.filter(x => p.lowerText.includes(x));
+                        const mt = matchQueryTerms(queryTerms, p.lowerText).sort((a, b) => b.length - a.length);
                         if (mHit) modelPages.push({ page: p, model: mHit.m });
                         if (hasExact || mt.length) kwPages.push({ page: p, term: hasClean ? cleanQuery : (mt[0] || cleanQuery) });
                     }
