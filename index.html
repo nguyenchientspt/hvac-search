@@ -2,7 +2,7 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>HVAC Smart Search </title>
+    <title>HVAC Smart Search - PDF & OFFICE</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js"></script>
@@ -197,24 +197,31 @@
             position: relative; 
             text-align: left;
         }
+        .copy-toast { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%) translateY(10px); background: #1b5e20; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; z-index: 99999; max-width: 70vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+        .copy-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .copy-toast.warn { background: #8a5a00; white-space: normal; }
+        .pdf-sel-layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; z-index: 6; }
+        .pdf-sel-rect { position: absolute; background: rgba(0,120,255,.32); border: 1px solid rgba(0,120,255,.75); border-radius: 2px; }
         .page-indicator-label { position: absolute; top: 5px; left: 5px; background: rgba(0,0,0,0.7); color: #fff; padding: 3px 6px; border-radius: 3px; font-size: 10px; z-index: 6; }
         .btn-rotate-single { background: #444; color: #ffe066; border: 1px solid #666; border-radius: 3px; padding: 1px 5px; margin-left: 6px; cursor: pointer; font-size: 10px; font-weight: bold; }
         .btn-rotate-single:hover { background: #ff9800; color: #000; }
 
         canvas { display: block; margin: 0 auto; background-color: #ffffff; }
+        .ocr-modal { position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:1000; display:none; align-items:center; justify-content:center; }
+        .ocr-box { background:#252526; border:1px solid #555; border-radius:8px; width:min(760px, 94vw); max-height:88vh; overflow:auto; padding:14px 16px; color:#ddd; font-size:12.5px; }
+        .ocr-head { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-size:14px; color:#fff; }
+        .ocr-box select, .ocr-box input[type=text] { background:#1e1e1e; color:#fff; border:1px solid #444; border-radius:4px; padding:5px 8px; }
+        .ocr-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+        .ocr-btn { background:#8e44ad; color:#fff; border:none; border-radius:4px; padding:7px 14px; font-weight:bold; cursor:pointer; }
+        .ocr-btn.sec { background:#3c3c3c; } .ocr-btn.stop { background:#c53030; }
+        .ocr-btn:disabled { opacity:.5; cursor:default; }
+        .ocr-bar { height:8px; background:#1e1e1e; border-radius:4px; overflow:hidden; margin:6px 0; }
+        .ocr-bar > div { height:100%; width:0; background:#8e44ad; transition:width .2s; }
+        .ocr-log { font-family:Consolas, monospace; font-size:11px; color:#aaa; max-height:130px; overflow:auto; white-space:pre-wrap; background:#1b1b1c; padding:6px 8px; border-radius:4px; }
+        .ocr-list table { width:100%; border-collapse:collapse; font-size:12px; margin-top:6px; }
+        .ocr-list th, .ocr-list td { border-bottom:1px solid #3a3a3a; padding:4px 6px; text-align:left; }
+        .ocr-toast { position:fixed; right:18px; bottom:18px; background:#2d2d30; border:1px solid #8e44ad; color:#fff; padding:10px 14px; border-radius:8px; z-index:1100; max-width:380px; font-size:12.5px; line-height:1.45; }
         .highlight-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 4; }
-        /* Lớp chữ trong suốt phủ lên trang PDF để bôi đen / copy (chỉ nhận chuột khi bật chế độ Chọn chữ) */
-        .pdf-text-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: hidden; z-index: 5; pointer-events: none; line-height: 1; user-select: none; }
-        .pdf-text-layer span { position: absolute; white-space: pre; color: transparent; transform-origin: 0 0; font-family: Arial, sans-serif; }
-        .pdf-text-layer ::selection { background: rgba(0, 120, 215, 0.38); color: transparent; }
-        /* Khi đang bôi đen, vùng trống giữa các chữ phải rơi vào "mỏ neo" này (nằm sát đầu vùng chọn) thay vì làm vùng chọn nhảy tới hết trang */
-        .pdf-text-layer .endOfContent { display: block; position: absolute; left: 0; right: 0; top: 100%; bottom: 0; z-index: -1; cursor: default; user-select: none; }
-        .pdf-text-layer.selecting .endOfContent { top: 0; }
-        .pdf-scroll-container.select-mode { cursor: text; user-select: text; }
-        .pdf-scroll-container.select-mode .pdf-text-layer { pointer-events: auto; user-select: text; cursor: text; }
-        .pdf-scroll-container.select-mode canvas, .pdf-scroll-container.select-mode .page-indicator-label { user-select: none; }
-        .pdf-btn.mode-on { background: #0b7a3b; border-color: #35c46b; color: #fff; font-weight: bold; }
-        .viewer-toast { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); background: rgba(0,0,0,0.82); color: #fff; padding: 6px 14px; border-radius: 16px; font-size: 12px; z-index: 50; pointer-events: none; transition: opacity .25s; }
         .pdf-highlight-box { position: absolute; background-color: rgba(255, 224, 102, 0.28); border: 1px solid rgba(210, 160, 0, 0.72); border-radius: 2px; }
         
         /* Mây Đỏ: Điểm đang Next/Prev trúng tới */
@@ -256,6 +263,18 @@
             .spec-panel-body { display: none; flex-direction: column; gap: 10px; }
         .spec-panel-body.open { display: flex; }
         .office-hit-focus { outline: 3px solid #e53935 !important; outline-offset: -2px; background: rgba(229,57,53,.28) !important; border-radius: 4px; }
+            .autocomplete-option .ac-hint { float: right; color: #7fa3b5; font-size: 11px; margin-left: 8px; }
+        .autocomplete-option.ac-fix { color: #ffb74d; font-style: italic; }
+        .autocomplete-option.ac-tr { color: #7fd6ff; }
+            #termChipsBox { margin-top: 6px; background: #1b2630; border: 1px solid #2f4152; border-radius: 4px; padding: 6px 8px; }
+        #termChipsBox .tc-title { font-size: 11px; color: #9fb4c4; margin-bottom: 4px; }
+        #termChipsBox .tc-row { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin-bottom: 4px; }
+        #termChipsBox .term-chip { display: inline-flex; align-items: center; gap: 3px; background: #2a3b4a; color: #dfe9f0; border: 1px solid #3c5368; border-radius: 10px; padding: 1px 7px; font-size: 11px; }
+        #termChipsBox .term-chip.main { background: #1f5f8b; border-color: #2d7db5; font-weight: bold; color: #fff; }
+        #termChipsBox .term-chip button { background: transparent; border: none; color: #ff8a80; cursor: pointer; padding: 0 2px; font-size: 11px; line-height: 1; }
+        #termChipsBox .term-chip button:hover { color: #fff; background: #c53030; border-radius: 50%; }
+        #termChipsBox .tc-restore { font-size: 11px; color: #aaa; }
+        #termChipsBox .tc-restore a { color: #ffb74d; }
     </style>
 </head>
 <body>
@@ -269,6 +288,8 @@
             <button class="btn-upload" id="btnRefreshSources" onclick="userTriggerRefresh()" style="background: #007acc; display: flex; align-items: center; gap: 6px;">
                 🔄 Làm mới & lập chỉ mục
             </button>
+
+            <button class="btn-upload" id="btnOcr" onclick="openOcrPanel()" style="background:#8e44ad;" title="OCR cho PDF mà chữ được chèn dạng ảnh/scan">🔤 OCR trang ảnh</button>
 
             <select id="docTypeSelect" class="doc-type-dropdown" onchange="applyAllFilters()" disabled>
                 <option value="ALL">🗂️ -- Tất cả PDF --</option>
@@ -331,6 +352,8 @@
                     <input type="text" id="queryInput" placeholder="Vd: drain, ống đồng, công suất..." onkeyup="if(event.key==='Enter' && !autocompleteEnterHandled) searchMain(); autocompleteEnterHandled=false" autocomplete="off">
                     <div id="queryDatalist" class="autocomplete-suggestions"></div>
                 </div>
+                <div id="smartParseNote" style="display:none; font-size:11px; color:#9ccc9c; margin-top:4px; line-height:1.5;"></div>
+                <div id="termChipsBox" style="display:none;"></div>
             </div>
             <button class="btn-search-pdf" onclick="searchMain()" title="Nhập Model (Bước 1) + Từ khóa (Bước 2): tìm các tài liệu có cả hai, kèm các trang có Model và Từ khóa trên cùng 1 trang. Chỉ nhập 1 trong 2 thì tìm theo thứ được nhập.">🔍 TÌM KIẾM</button>
 
@@ -433,13 +456,14 @@
                     <button class="pdf-btn" id="pdfSpecNextBtn" onclick="navigatePdfSpecRow(1)" disabled>Next ▶</button>
                 </div>
                 <div class="pdf-btn-group" id="pdfControls">
-                    <button class="pdf-btn" id="selectModeBtn" onclick="toggleSelectMode()" title="Nháy đúp chuột trái trên trang để đổi chế độ. Chế độ chọn chữ: giữ chuột và kéo để bôi đen, kéo xuống mép dưới thì trang tự cuộn theo. Esc để thoát.">✋ Kéo trang</button>
                     <button class="pdf-btn" onclick="rotateAll('left')">↺ Xoay trái 90°</button>
                     <button class="pdf-btn" onclick="rotateAll('right')">↻ Xoay phải 90°</button>
                     <button class="pdf-btn" onclick="zoomPdfAt(-0.15)">➖ Thu nhỏ</button>
                     <span class="zoom-text" id="zoomLevelText">100%</span>
                     <button class="pdf-btn" onclick="zoomPdfAt(0.15)">➕ Phóng to</button>
                     <button class="pdf-btn" onclick="pdfResetView()">↺ Vừa khung</button>
+                    <button class="pdf-btn" onclick="ocrCurrentPageNow()" title="Nhận dạng chữ (OCR) cho trang đang xem, kể cả khi trang chỉ có một phần là hình ảnh. Xong là nhấp đúp để chọn và copy chữ">🔤 OCR trang này</button>
+                    <button class="pdf-btn" onclick="diagnoseCurrentPage()" title="Kiểm tra vì sao tool không tìm thấy chữ trên trang đang xem">🩺 Kiểm tra trang</button>
                     <input type="number" id="pageJumpInput" class="page-jump-input" min="1" placeholder="Số trang" title="Nhập số trang rồi nhấn Enter" onkeydown="if(event.key==='Enter'){event.preventDefault();goToPageFromInput();}" onmousedown="event.stopPropagation()">
                 </div>
                 <div class="pdf-btn-group" id="officeControls" style="display:none;">
@@ -638,17 +662,9 @@
             return !!p && ((p.base || p.id) === 'p8' || normalizeExcelSearchText(p.name || '').startsWith('kich thuoc'));
         }
 // Khóa tìm = khóa gốc (bỏ chữ dàn nóng/lạnh) + từ đồng nghĩa trong từ điển (vd. kích thước = dimensions/dimentions)
-        const _effKeyCache = new Map();
         function effectiveParamKeys(p) {
-            const cacheKey = (p.keys || []).join('|');
-            if (_effKeyCache.has(cacheKey)) return _effKeyCache.get(cacheKey);
             const out = new Set();
             (p.keys || []).forEach(kw => {
-                // Thuật ngữ Anh tương ứng + cách sắp xếp lại có nghĩa của tiêu chí (ống kết nối <-> kết nối ống <-> piping connections)
-                const baseKw = String(kw).toLowerCase().replace(SIDE_WORDS_RE, ' ').replace(/\s+/g, ' ').trim();
-                const gUnits = viUnits(baseKw);
-                glossaryEnglishVariants(gUnits, webCachedOpts(gUnits)).forEach(t => { const n = normalizeExcelSearchText(t); if (n) out.add(n); });
-                viOrderVariants(baseKw).forEach(t => { const n = normalizeExcelSearchText(t); if (n) out.add(n); });
                 const n = normalizeExcelSearchText(kw).replace(SIDE_WORDS_RE, ' ').replace(/\s+/g, ' ').trim();
                 if (!n) return;
                 out.add(n);
@@ -657,9 +673,7 @@
                     if (normalizeExcelSearchText(k) === n) list.forEach(x => { const nx = normalizeExcelSearchText(x); if (nx.length > 2) out.add(nx); });
                 }
             });
-            const result = [...out];
-            _effKeyCache.set(cacheKey, result);
-            return result;
+            return [...out];
         }
 
         function isRowMatchCheckedParam(normalizedLabel, p) {
@@ -721,6 +735,11 @@
             "inverter": ["inverter", "biến tần", "bien tan"],
             "gas": ["gas", "môi chất lạnh", "moi chat lanh", "refrigerant", "r410a", "r32", "r22", "r407c"],
             "máy nén": ["máy nén", "may nen", "compressor"],
+            "co2": ["co2", "cảm biến co2", "co2 sensor", "carbon dioxide", "nồng độ co2"],
+            "kết nối": ["kết nối", "đấu nối", "connection", "connect", "connecting", "wiring", "đấu dây"],
+            "cảm biến": ["cảm biến", "sensor"],
+            "thông gió": ["thông gió", "ventilation", "heat recovery", "thu hồi nhiệt"],
+            "điều khiển": ["điều khiển", "controller", "remote control", "control"],
             "bảo dưỡng": ["bảo dưỡng", "bao duong", "maintenance", "service manual", "hướng dẫn lắp đặt", "installation manual", "troubleshooting", "lỗi", "mã lỗi"]
         };
 
@@ -801,7 +820,9 @@
 
             // 🌟 REGEX BẮT BUỘC CÁC CHỮ CỦA MODEL PHẢI ĐỨNG LIỀN SÁT NHAU
             // Cho phép đuôi model đời sau (ví dụ tìm RXQ62B sẽ khớp RXQ62BYM, RXQ62B)
-            const regexPattern = '(?:^|[^a-z0-9])' + chunks.map(c => esc(c)).join(SEP) + '[\\)]*([a-z0-9]{0,4})(?=[^a-z0-9]|$)';
+            // Model có số (RXQ62B) -> đuôi tối đa 4 ký tự; chỉ có chữ (họ model RXQ, VAM, FTKB) -> khớp mọi mã bắt đầu bằng họ đó (RXQ22AMYM...)
+            const tailLen = /\d/.test(compact) ? 4 : 14;
+            const regexPattern = '(?:^|[^a-z0-9])' + chunks.map(c => esc(c)).join(SEP) + '[\\)]*([a-z0-9]{0,' + tailLen + '})(?=[^a-z0-9]|$)';
             const exactRegex = new RegExp(regexPattern, 'i');
 
             return {
@@ -819,6 +840,61 @@
             };
         }
 
+
+        /* Từ điển CỤM TỪ (ưu tiên hơn từ điển từ đơn): cụm tiếng Việt giữ nguyên là 1 ý, dịch ra đúng thuật ngữ tiếng Anh trong tài liệu hãng.
+           Ví dụ "kích thước dây" => "wire size" (không bị tách thành "kích thước" + "dây" rồi dịch lung tung thành "size" + "cord").
+           Gõ tiếng Anh nguyên cụm (vd "wire size") thì ra ngược lại các cụm tiếng Việt tương ứng. */
+        const hvacPhrases = {
+            "kích thước dây điện": ["wire size", "wire gauge", "cable size", "wiring size", "kích thước dây", "tiết diện dây"],
+            "kích thước dây": ["wire size", "wire gauge", "cable size", "wiring size", "tiết diện dây"],
+            "tiết diện dây": ["wire size", "conductor size", "cross-sectional area", "wire gauge", "kích thước dây"],
+            "tiết diện dây dẫn": ["wire size", "conductor size", "cross-sectional area", "wire gauge", "kích thước dây"],
+            "cỡ dây": ["wire size", "wire gauge", "kích thước dây"],
+            "kích thước cáp": ["cable size", "wire size", "kích thước dây"],
+            "dây nguồn": ["power wire", "power cable", "power supply wiring", "power supply cable", "power cord"],
+            "dây tín hiệu": ["signal wire", "signal cable", "transmission wiring", "transmission wire"],
+            "dây điều khiển": ["control wiring", "control cable", "remote controller wiring", "remote controller wire"],
+            "dây tiếp địa": ["earth wire", "ground wire", "grounding", "earthing"],
+            "dây dẫn": ["wire", "conductor", "lead wire"],
+            "dây điện": ["wire", "wiring", "electric wire", "electrical wiring", "cable", "dây dẫn điện", "đấu dây"],
+            "hướng dẫn lắp đặt": ["installation manual", "installation instructions", "installation guide", "install manual"],
+            "vị trí lắp đặt": ["installation location", "installation site", "installation position"],
+            "phương pháp lắp đặt": ["installation method", "installation procedure"],
+            "cách lắp đặt": ["installation method", "how to install", "installation procedure"],
+            "tháo lắp": ["removing", "removal", "disassembly", "installation and removal"],
+            "lắp đặt": ["installation", "install"],
+            "dây": ["wire", "cable", "wiring", "cord"]
+        };
+        const hvacPhraseKeysNoTone = () => Object.keys(hvacPhrases).map(k => removeVietnameseTones(k));
+        const phraseBoundary = s => new RegExp('(?<![\\p{L}\\p{N}])' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\p{L}\\p{N}])', 'u');
+
+        // Tìm các cụm trong câu gõ (cụm dài trước). Các cụm được phép chồng nhau một phần ("kích thước dây" + "dây nguồn"),
+        // nhưng cụm nằm TRỌN trong cụm dài hơn đã nhận thì bỏ (để "dây" đơn không thêm từ nhiễu). Trả về các từ + phần câu chưa được cụm nào nhận.
+        function applyPhraseGlossary(cleanRaw, rawNoTone) {
+            const hasTone = cleanRaw !== rawNoTone;
+            const covered = new Array(cleanRaw.length).fill(false);
+            const terms = [];
+            const entries = Object.entries(hvacPhrases).sort((a, b) => b[0].length - a[0].length);
+            for (const [k, list] of entries) {
+                const kNo = removeVietnameseTones(k);
+                let m = phraseBoundary(k).exec(cleanRaw);                                          // gõ có dấu: khớp nguyên cụm theo ranh giới từ
+                if (!m && !hasTone && k.includes(' ')) m = phraseBoundary(kNo).exec(rawNoTone);   // gõ không dấu ("kich thuoc day"); cụm 1 từ như "dây" không áp dụng vì "day" là từ tiếng Anh khác nghĩa
+                if (m) {
+                    const s = m.index, e = s + m[0].length;
+                    let fresh = false;
+                    for (let i = s; i < e; i++) if (!covered[i]) { fresh = true; break; }
+                    if (!fresh) continue;
+                    for (let i = s; i < e; i++) covered[i] = true;
+                    terms.push(k, ...list);
+                } else if (list.some(x => !/[à-ỹ]/i.test(x) && (x === cleanRaw.trim() || x === rawNoTone.trim()))) {   // gõ nguyên cụm tiếng Anh ("wire size") => thêm cụm tiếng Việt tương ứng
+                    covered.fill(true);
+                    terms.push(k);
+                }
+            }
+            const rest = cleanRaw.split('').map((ch, i) => covered[i] ? ' ' : ch).join('').replace(/\s+/g, ' ').trim();
+            return { terms, rest, restNoTone: removeVietnameseTones(rest), matched: terms.length > 0 };
+        }
+
         /* ================= BỘ TỰ ĐỘNG DỊCH TIẾNG VIỆT -> ANH (ONLINE API) ================= */
         const translationCache = {};
 
@@ -828,242 +904,35 @@
             // Nếu không có dấu tiếng Việt thì không cần dịch
             if (clean.length < 2 || !/[à-ỹá-ýạ-ỵả-ỷã-ỹă-ắâ-ấđ]/i.test(clean)) return null;
             if (translationCache[clean]) return translationCache[clean];
-            const r = await webLookup(clean, 'vi|en');   // dùng chung bộ nhớ đệm / bộ học từ
-            if (r && r[0]) { translationCache[clean] = r[0]; return r[0]; }
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 2200); // Tối đa 2.2 giây để không làm đơ web
+
+                const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(clean)}&langpair=vi|en`;
+                const res = await fetch(url, { signal: controller.signal });
+                clearTimeout(timeoutId);
+
+                if (res.ok) {
+                    const data = await res.json();
+                    let trans = data.responseData?.translatedText;
+                    if (trans && typeof trans === 'string') {
+                        trans = trans.trim().toLowerCase();
+                        if (!trans.includes('mymemory') && trans !== clean) {
+                            translationCache[clean] = trans;
+                            return trans;
+                        }
+                    }
+                }
+            } catch (e) {
+                // Mất mạng hoặc timeout thì tự động bỏ qua
+            }
             return null;
         }
 
-        /* ================= HIỂU THỨ TỰ TỪ & DỊCH THUẬT NGỮ HVAC ================= */
-        /* Từ điển thuật ngữ Việt -> Anh (mỗi mục là 1 "từ ghép" nguyên khối, không bị tách khi đảo thứ tự) */
-        const VI_GLOSSARY = {
-            "ống": ["piping", "pipe"], "đường ống": ["piping", "pipe"], "ống đồng": ["copper pipe", "piping"], "ống gió": ["duct"],
-            "kết nối": ["connection", "connections"], "đấu nối": ["connection", "connections"],
-            "công suất": ["capacity", "power"], "làm lạnh": ["cooling"], "làm mát": ["cooling"], "lạnh": ["cooling"], "sưởi": ["heating"],
-            "điện năng": ["power input", "power consumption"], "tiêu thụ": ["consumption", "input"], "điện": ["electric", "electrical", "power"],
-            "lưu lượng": ["flow", "air flow"], "gió": ["air", "air flow"], "quạt": ["fan"], "tốc độ": ["speed"],
-            "áp suất": ["pressure"], "tĩnh": ["static"], "độ ồn": ["noise", "sound level", "spl"], "âm thanh": ["sound"],
-            "kích thước": ["dimensions", "dimension"], "trọng lượng": ["weight"], "khối lượng": ["weight", "mass"],
-            "môi chất": ["refrigerant"], "môi chất lạnh": ["refrigerant"], "khối lượng nạp": ["refrigerant charge", "charge"], "nạp": ["charge"],
-            "dàn nóng": ["outdoor unit", "outdoor"], "dàn lạnh": ["indoor unit", "indoor"], "cụm nóng": ["outdoor unit"], "cụm lạnh": ["indoor unit"],
-            "máy nén": ["compressor"], "bơm": ["pump"], "nước xả": ["drain"], "nước ngưng": ["condensate", "drain"], "bơm nước xả": ["drain pump"], "nước": ["water"],
-            "nguồn điện": ["power supply"], "điện áp": ["voltage"], "dòng điện": ["current"], "hiệu suất": ["efficiency"],
-            "lắp đặt": ["installation"], "bảo dưỡng": ["maintenance"], "điều khiển": ["controller", "control"], "từ xa": ["remote"],
-            "chiều dài": ["length"], "độ cao": ["height"], "chênh lệch độ cao": ["height difference", "elevation difference"],
-            "tối đa": ["max", "maximum"], "tối thiểu": ["min", "minimum"], "định mức": ["rated", "nominal"],
-            "loại": ["type"], "màu": ["color"], "vỏ máy": ["casing"], "nhiệt độ": ["temperature"], "độ ẩm": ["humidity"],
-            "bộ chia": ["refnet joint", "refnet header", "refnet", "branch kit", "branch pipe", "distributive piping", "multi connection"],
-            "bộ chia gas": ["refnet joint", "refnet header", "refnet", "branch kit", "branch pipe", "distributive piping", "multi connection"],
-            "lỏng": ["liquid"], "hơi": ["gas"], "khí": ["gas", "air"], "dây": ["wire", "cable"], "dây điện": ["wiring", "electric wire"],
-            "bộ lọc": ["filter"], "lọc": ["filter"], "cánh": ["louver", "vane"], "cảm biến": ["sensor"], "mã lỗi": ["error code"]
-        };
-        const _ntKey = t => removeVietnameseTones(String(t).toLowerCase()).replace(/\s+/g, ' ').trim();
-        let _viGlossNT = null, _viLex = null;
-        function viGlossNT() {
-            if (_viGlossNT) return _viGlossNT;
-            _viGlossNT = {};
-            Object.entries(VI_GLOSSARY).forEach(([k, v]) => { _viGlossNT[_ntKey(k)] = v; });
-            return _viGlossNT;
-        }
-        function viLexicon() {
-            if (_viLex) return _viLex;
-            _viLex = new Set();
-            const add = t => { const n = _ntKey(t), c = n.split(' ').length; if (c >= 2 && c <= 4) _viLex.add(n); };
-            Object.keys(VI_GLOSSARY).forEach(add);
-            Object.entries(hvacDictionary).forEach(([k, list]) => { add(k); list.forEach(add); });
-            return _viLex;
-        }
-        /* Tách câu thành các "đơn vị từ": từ ghép nằm trong từ điển (kết nối, làm lạnh, công suất...) được giữ NGUYÊN khối */
-        function viUnits(text) {
-            const toks = String(text || '').toLowerCase().replace(/\([^)]*\)/g, ' ').split(/\s+/).filter(Boolean);
-            const nt = toks.map(t => removeVietnameseTones(t));
-            const lex = viLexicon();
-            const units = [];
-            for (let i = 0; i < toks.length;) {
-                let took = 0;
-                for (let n = Math.min(4, toks.length - i); n >= 2; n--) {
-                    if (lex.has(nt.slice(i, i + n).join(' '))) { units.push(toks.slice(i, i + n).join(' ')); took = n; break; }
-                }
-                if (!took) { units.push(toks[i]); took = 1; }
-                i += took;
-            }
-            return units;
-        }
-        function _permutations(arr, cap) {
-            const out = [];
-            const rec = (cur, rest) => {
-                if (out.length >= cap) return;
-                if (!rest.length) { out.push(cur); return; }
-                rest.forEach((x, i) => rec([...cur, x], [...rest.slice(0, i), ...rest.slice(i + 1)]));
-            };
-            rec([], arr);
-            return out;
-        }
-        function _orderings(units) {
-            if (units.length < 2) return [units];
-            if (units.length <= 3) return _permutations(units, 24);
-            // 4-5 đơn vị: chỉ đảo đầu-cuối, xoay vòng, đổi chỗ 2 đơn vị liền nhau (tránh bùng nổ tổ hợp vô nghĩa)
-            const res = [units, [...units].reverse()];
-            for (let r = 1; r < units.length; r++) res.push([...units.slice(r), ...units.slice(0, r)]);
-            for (let i = 0; i < units.length - 1; i++) { const c = [...units]; [c[i], c[i + 1]] = [c[i + 1], c[i]]; res.push(c); }
-            return res;
-        }
-        function _isViQuery(text, units) {
-            if (/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(text)) return true;
-            const g = viGlossNT();
-            return units.some(u => g[_ntKey(u)]);   // gõ không dấu: "ong ket noi"
-        }
-        /* Các cách sắp xếp lại thứ tự CÓ NGHĨA: đổi chỗ các từ ghép nguyên khối ("ống kết nối" <-> "kết nối ống"),
-           không bao giờ tách từ ghép nên không ra "nối kết ống" */
-        function viOrderVariants(text) {
-            const units = viUnits(text);
-            if (units.length < 2 || units.length > 5 || !_isViQuery(text, units)) return [];
-            const orig = units.join(' ');
-            return [...new Set(_orderings(units).map(u => u.join(' ')))].filter(v => v !== orig);
-        }
-        /* Dịch từng đơn vị sang thuật ngữ tiếng Anh rồi ghép: kết nối ống -> pipe connection / piping connections ... */
-        function glossaryEnglishVariants(units, extra) {
-            if (!units || !units.length) return [];
-            const g = viGlossNT();
-            const opts = units.map(u => g[_ntKey(u)] || (extra && extra[_ntKey(u)]) || null);
-            if (opts.some(o => !o)) return [];
-            const out = new Set();
-            // tiếng Việt đứng sau bổ nghĩa cho từ đứng trước (kết nối ống) => tiếng Anh thường đảo ngược (pipe connection): thử ngược trước
-            const orders = units.length <= 3 ? _orderings(units.map((_, i) => i)) : [units.map((_, i) => units.length - 1 - i), units.map((_, i) => i)];
-            const sorted = orders.slice().sort((a, b) => {
-                const rev = x => x.every((v, i) => v === units.length - 1 - i) ? 0 : 1;
-                return rev(a) - rev(b);
-            });
-            for (const ord of sorted) {
-                let combos = [[]];
-                ord.forEach(idx => {
-                    const next = [];
-                    combos.forEach(c => opts[idx].slice(0, 2).forEach(o => next.push([...c, o])));
-                    combos = next;
-                });
-                combos.forEach(c => out.add(c.join(' ')));
-                if (out.size >= 40) break;
-            }
-            return [...out];
-        }
-
-        /* ================= TRA THÊM TỪ SÁT NGHĨA TRÊN WEB (khi có mạng) + HỌC DẦN ================= */
-        /* Chỉ gửi TỪ KHÓA bạn gõ (không gửi nội dung tài liệu). Kết quả được lưu lại trong máy nên lần sau dùng cả khi mất mạng. */
-        const WEB_TERMS_KEY = 'HVACSearch_WebTerms_v1';
-        let webTermCache = {};
-        try { webTermCache = JSON.parse(localStorage.getItem(WEB_TERMS_KEY) || '{}') || {}; } catch (e) { webTermCache = {}; }
-        let _webSaveTimer = null;
-        function saveWebTerms() {
-            clearTimeout(_webSaveTimer);
-            _webSaveTimer = setTimeout(() => {
-                try {
-                    const keys = Object.keys(webTermCache);
-                    if (keys.length > 1500) keys.sort((a, b) => (webTermCache[a].t || 0) - (webTermCache[b].t || 0)).slice(0, keys.length - 1200).forEach(k => delete webTermCache[k]);
-                    localStorage.setItem(WEB_TERMS_KEY, JSON.stringify(webTermCache));
-                } catch (e) {}
-            }, 400);
-        }
-        const WEB_STOP = new Set(['the', 'of', 'a', 'an', 'and', 'or', 'to', 'in', 'on', 'for', 'is', 'are', 'it', 'by', 'with', 'at']);
-        function cleanWebTerm(t, source) {
-            if (!t || typeof t !== 'string') return '';
-            let x = t.toLowerCase().replace(/<[^>]*>/g, ' ').replace(/[“”"']/g, '').replace(/[.。]+$/, '').replace(/\s+/g, ' ').replace(/^(the|a|an)\s+/, '').trim();
-            if (!x || x.length < 3 || x.length > 60) return '';
-            if (/mymemory|http|www\.|@|translated/.test(x)) return '';
-            const words = x.split(' ');
-            if (words.length > 6 || words.every(w => WEB_STOP.has(w))) return '';
-            if (x === String(source || '').toLowerCase().trim()) return '';
-            return x;
-        }
-        // Tra 1 cụm từ (vi|en hoặc en|vi). Trả về tối đa 4 cách dịch, tốt nhất đứng đầu
-        async function webLookup(text, langpair) {
-            const q = String(text || '').toLowerCase().replace(/\s+/g, ' ').trim();
-            if (q.length < 2) return [];
-            const key = langpair + '|' + q;
-            const hit = webTermCache[key];
-            if (hit) {
-                const ttl = (hit.terms && hit.terms.length) ? 30 * 86400000 : 86400000;
-                if (Date.now() - (hit.t || 0) < ttl) return hit.terms || [];
-            }
-            if (typeof navigator !== 'undefined' && navigator.onLine === false) return (hit && hit.terms) || [];
-            try {
-                const controller = new AbortController();
-                const timer = setTimeout(() => controller.abort(), 2500);
-                const res = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=${langpair}`, { signal: controller.signal });
-                clearTimeout(timer);
-                if (!res.ok) return (hit && hit.terms) || [];
-                const data = await res.json();
-                const cands = [];
-                const main = cleanWebTerm(data.responseData && data.responseData.translatedText, q);
-                if (main) cands.push(main);
-                (data.matches || []).filter(m => Number(m.match) >= 0.5).sort((a, b) => Number(b.match) - Number(a.match)).forEach(m => {
-                    const c = cleanWebTerm(m.translation, q);
-                    if (c) cands.push(c);
-                });
-                const terms = [...new Set(cands)].slice(0, 4);
-                webTermCache[key] = { terms, t: Date.now() };
-                _effKeyCache.clear();            // tiêu chí spec dùng lại từ mới học được
-                saveWebTerms();
-                return terms;
-            } catch (e) {
-                return (hit && hit.terms) || [];
-            }
-        }
-        // Đọc từ đã học (không cần mạng): thuật ngữ Anh cho các từ chưa có trong từ điển gốc
-        function webCachedOpts(units) {
-            const out = {};
-            const g = viGlossNT();
-            (units || []).forEach(u => {
-                const k = _ntKey(u);
-                if (g[k]) return;
-                const hit = webTermCache['vi|en|' + String(u).toLowerCase().trim()];
-                if (hit && hit.terms && hit.terms.length) out[k] = hit.terms.slice(0, 2);
-            });
-            return out;
-        }
-        // Gom từ sát nghĩa: cụm gốc, từng từ chưa biết, và (nếu gõ tiếng Anh) nghĩa tiếng Việt
-        async function webEnrichTerms(cleanRaw, units) {
-            const out = { terms: [], unitOpts: {} };
-            const g = viGlossNT();
-            const isVi = _isViQuery(cleanRaw, units);
-            const tasks = [];
-            if (isVi) {
-                tasks.push(webLookup(cleanRaw, 'vi|en'));
-                units.filter(u => !g[_ntKey(u)] && u.length >= 3 && !/^[a-z]+\d/.test(u)).slice(0, 4).forEach(u => tasks.push(webLookup(u, 'vi|en')));
-            } else if (/^[a-z][a-z\s\-]{2,}$/i.test(cleanRaw) && !/\d/.test(cleanRaw)) {
-                tasks.push(webLookup(cleanRaw, 'en|vi'));
-            }
-            if (tasks.length) await Promise.race([Promise.allSettled(tasks), new Promise(r => setTimeout(r, 2800))]);
-            // đọc lại từ bộ nhớ đệm (có thể đã có kết quả từ lần trước, kể cả khi đang offline)
-            if (isVi) {
-                (webTermCache['vi|en|' + cleanRaw] || {}).terms && out.terms.push(...webTermCache['vi|en|' + cleanRaw].terms);
-                out.unitOpts = webCachedOpts(units);
-            } else {
-                const hit = webTermCache['en|vi|' + cleanRaw];
-                if (hit && hit.terms) out.terms.push(...hit.terms);
-            }
-            return out;
-        }
-
-        /* Khớp thông minh: từ khóa nhiều ý ("bộ chia" + "dàn nóng") => trang phải có ĐỦ các ý (mỗi ý ở bất kỳ cách gọi nào:
-           refnet joint, outdoor unit...) hoặc có nguyên cụm. Không còn khớp trang chỉ có 1 ý (vd. chỉ có "dàn nóng"). */
-        function matchQueryTerms(terms, text, norm) {
-            const N = norm || (x => x);
-            if (!terms || !terms.length || !text) return [];
-            const has = t => t && text.includes(N(t));
-            const groups = terms.groups;
-            if (!groups || groups.length < 2) return terms.filter(has);
-            const full = (terms.full || []).filter(has);
-            if (full.length) return full;
-            const hard = groups.filter(g => !g.soft);
-            const need = hard.length ? hard : groups;
-            const found = [];
-            for (const g of need) {
-                const hits = g.alts.filter(has);
-                if (!hits.length) return [];
-                found.push(...hits);
-            }
-            groups.filter(g => g.soft && !need.includes(g)).forEach(g => g.alts.filter(has).forEach(t => found.push(t)));
-            return [...new Set(found)];
-        }
+        let excludedTermKeys = new Set();   // từ đồng nghĩa người dùng đã bỏ (khóa không dấu)
+        let lastChipQuery = '';
+        function termKey(t) { return removeVietnameseTones(String(t || '').toLowerCase()).trim(); }
 
         async function expandBilingualTermsFast(query) {
             if (!query) return [];
@@ -1077,24 +946,19 @@
 
             let synonymTerms = [];
 
-            // 🌟 0. HIỂU THỨ TỰ TỪ: "ống kết nối" cũng là "kết nối ống" (chỉ đảo các từ ghép nguyên khối, không đảo ra cụm vô nghĩa)
-            const viForms = [cleanRaw, ...viOrderVariants(cleanRaw)];
-            const fullSet = new Set();
-            viForms.slice(1).forEach(v => {
-                primaryTerms.push(v);
-                const vn = removeVietnameseTones(v);
-                if (vn !== v) primaryTerms.push(vn);
+            // 0. Cụm từ chuyên ngành (kích thước dây => wire size...): dịch chuẩn, phần đã được cụm nhận thì không dịch online nữa
+            const ph = applyPhraseGlossary(cleanRaw, rawNoTone);
+            ph.terms.forEach(x => {
+                const l = x.toLowerCase();
+                if (!synonymTerms.includes(l)) synonymTerms.push(l);
+                const ln = removeVietnameseTones(l);
+                if (!synonymTerms.includes(ln)) synonymTerms.push(ln);
             });
-            // Thuật ngữ tiếng Anh tương ứng (vd. piping connections) lấy từ từ điển thuật ngữ, không cần mạng
-            const _units = viUnits(cleanRaw);
-            // 🌐 Tra thêm từ sát nghĩa trên web nếu có mạng (kết quả được lưu lại để dùng cả khi mất mạng)
-            let _web = { terms: [], unitOpts: {} };
-            try { _web = await webEnrichTerms(cleanRaw, _units); } catch (e) {}
-            glossaryEnglishVariants(_units, _web.unitOpts).forEach(t => { synonymTerms.push(t); fullSet.add(t); });
-            _web.terms.forEach(t => { synonymTerms.push(t); fullSet.add(t); const tn = removeVietnameseTones(t); if (tn !== t) { synonymTerms.push(tn); fullSet.add(tn); } });
+            const workClean = ph.matched ? ph.rest : cleanRaw;
+            const workNoTone = ph.matched ? ph.restNoTone : rawNoTone;
 
-            // 🌟 1. TỰ ĐỘNG DỊCH TỪ KHÓA BẤT KỲ SANG TIẾNG ANH
-            const autoEn = await autoTranslateViToEn(cleanRaw);
+            // 🌟 1. TỰ ĐỘNG DỊCH TỪ KHÓA BẤT KỲ SANG TIẾNG ANH (chỉ phần chưa được từ điển cụm nhận)
+            const autoEn = workClean.length >= 2 ? await autoTranslateViToEn(workClean) : null;
             if (autoEn) {
                 synonymTerms.push(autoEn);
                 const autoEnNoTone = removeVietnameseTones(autoEn);
@@ -1112,21 +976,12 @@
                 if (isSpecificPower && (k === "công suất" || k === "capacity")) continue;
 
                 const kNoTone = removeVietnameseTones(k);
-                const isMatch = viForms.some(f => {
-                    const fNoTone = removeVietnameseTones(f);
-                    return f.includes(k) || fNoTone.includes(kNoTone) ||
-                           list.some(item => f === item || fNoTone === removeVietnameseTones(item));
-                });
+                const isMatch = workClean.includes(k) || workNoTone.includes(kNoTone) ||
+                                list.some(item => cleanRaw === item || rawNoTone === removeVietnameseTones(item));
                 
                 if (isMatch) {
-                    // Khớp CẢ CÂU (không chỉ một phần của câu) => được coi là cụm nguyên câu
-                    const isWhole = viForms.some(f => {
-                        const fn = removeVietnameseTones(f);
-                        return f === k || fn === kNoTone || list.some(item => f === item || fn === removeVietnameseTones(item));
-                    });
                     list.forEach(t => {
                         const tLower = t.toLowerCase();
-                        if (isWhole) { fullSet.add(tLower); fullSet.add(removeVietnameseTones(tLower)); }
                         if (isSpecificPower && (tLower === "công suất" || tLower === "capacity" || tLower === "cong suat")) return;
                         if (!synonymTerms.includes(tLower)) synonymTerms.push(tLower);
                         const tNoTone = removeVietnameseTones(tLower);
@@ -1135,31 +990,12 @@
                 }
             }
 
-            primaryTerms.forEach(t => fullSet.add(t));
-            if (autoEn) { fullSet.add(autoEn); fullSet.add(removeVietnameseTones(autoEn)); }
-
-            // Mỗi "ý" trong câu (bộ chia / dàn nóng ...) có nhóm cách gọi riêng, gồm tiếng Việt, tiếng Anh, từ điển HVAC, từ tra web
-            const _gl = viGlossNT();
-            const groups = _units.map(u => {
-                const ntU = _ntKey(u);
-                const alts = new Set();
-                let mapped = false;
-                const add = x => { const t = String(x || '').toLowerCase().trim(); if (t.length >= 2) { alts.add(t); const n = removeVietnameseTones(t); if (n !== t) alts.add(n); } };
-                add(u);
-                (_gl[ntU] || []).forEach(x => { add(x); mapped = true; });
-                ((_web.unitOpts || {})[ntU] || []).forEach(x => { add(x); mapped = true; });
-                for (const [k, list] of Object.entries(hvacDictionary)) {
-                    if (_ntKey(k) === ntU || list.some(it => _ntKey(it) === ntU)) { add(k); list.forEach(add); mapped = true; }
-                }
-                return { unit: u, alts: [...alts], soft: !mapped };
-            });
-            const groupAlts = groups.flatMap(g => g.alts);
-
-            const allTerms = [...new Set([...primaryTerms, ...synonymTerms, ...groupAlts])]
+            // Từ gốc luôn giữ; từ đồng nghĩa nào người dùng đã bấm ✖ thì loại bỏ
+            const primaryKeys = new Set([cleanRaw, raw, rawNoTone].map(termKey));
+            const allTerms = [...new Set([...primaryTerms, ...synonymTerms])]
                 .filter(t => t && t.length >= 2)
+                .filter(t => primaryKeys.has(termKey(t)) || !excludedTermKeys.has(termKey(t)))
                 .sort((a, b) => b.length - a.length);
-            allTerms.groups = groups;
-            allTerms.full = [...fullSet].filter(t => t && t.length >= 2).sort((a, b) => b.length - a.length);
 
             return allTerms;
         }
@@ -1171,6 +1007,31 @@
 
         function renderAutocompleteSuggestions(inputId, listId, resetIndex = true) {
             const input = document.getElementById(inputId), list = document.getElementById(listId);
+            // Ô từ khóa: gợi ý theo nội dung tài liệu + sửa lỗi chính tả (khi đã dựng xong từ điển)
+            if (inputId === 'queryInput') {
+                const smart = smartSuggest(input.value);
+                if (smart && smart.length) {
+                    list.replaceChildren();
+                    smart.forEach((item, index) => {
+                        const option = document.createElement('button');
+                        option.type = 'button';
+                        option.className = 'autocomplete-option' + (item.kind === 'fix' ? ' ac-fix' : (item.kind === 'tr' ? ' ac-tr' : ''));
+                        option.dataset.index = String(index);
+                        option.textContent = item.kind === 'fix' ? `↳ Ý bạn là: ${item.t}` : (item.kind === 'tr' ? `🌐 ${item.t}  (tiếng Anh)` : item.t);
+                        if (item.hint) {
+                            const hint = document.createElement('span');
+                            hint.className = 'ac-hint'; hint.textContent = formatVocabCount(item.hint);
+                            option.appendChild(hint);
+                        }
+                        option.addEventListener('mousedown', event => event.preventDefault());
+                        option.addEventListener('click', () => { input.value = item.t; list.classList.remove('open'); input.focus(); });
+                        list.appendChild(option);
+                    });
+                    if (resetIndex) list.dataset.activeIndex = '-1';
+                    list.classList.add('open');
+                    return;
+                }
+            }
             const query = input.value.trim().toLowerCase();
             const queryNoTone = removeVietnameseTones(query);
             const values = autocompleteValues[listId] || [];
@@ -1298,6 +1159,441 @@
             setDatalistOptions('queryDatalist', terms);
         }
 
+        /* ================= GỢI Ý TỪ KHÓA THEO NỘI DUNG TÀI LIỆU + SỬA LỖI CHÍNH TẢ (không cần AI, chạy offline) ================= */
+        function escapeHtml(value) {
+            return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+        }
+
+        const vocab = { ready: false, uni: [], uniNorm: new Map(), bi: [], biMap: new Map(), ph: [], phSet: new Set() };
+        let vocabBuildToken = 0;
+        const VOCAB_TOKEN_RE = /[\p{L}\p{N}]+(?:[-\/][\p{L}\p{N}]+)*/gu;
+        const QUERY_STOPWORDS = new Set(['và','của','cho','có','là','các','những','trong','với','được','khi','thì','này','đó','để','một','về','cần','hay','hoặc','tôi','muốn','tìm','kiếm','xem','bao','nhiêu','như','thế','nào','ra','sao','the','a','of','for','and','to','in','with']);
+        const CURATED_QUERY_TERMS = ['công suất điện','công suất làm lạnh','công suất sưởi','điện năng tiêu thụ','lưu lượng gió','áp suất tĩnh','áp suất tĩnh ngoài','độ ồn','kích thước','trọng lượng','kết nối ống','độ nâng của bơm nước xả','cspf','máy nén'];
+
+        function formatVocabCount(c) {
+            const n = Number(c) || 0;
+            return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1).replace('.0', '') + 'k' : String(n);
+        }
+
+        function vocabSignature() {
+            let total = 0;
+            allMasterFiles.forEach(f => { total += f.size || 0; });
+            return `${allMasterFiles.length}_${total}_${countIndexedFiles()}_${excelDataSheets.length}`;
+        }
+
+        function addTextToVocab(text, uni, bi) {
+            VOCAB_TOKEN_RE.lastIndex = 0;
+            let m, prev = null, prevEnd = -2;
+            while ((m = VOCAB_TOKEN_RE.exec(text)) !== null) {
+                const w = m[0];
+                if (w.length < 2 || w.length > 24 || !/\p{L}/u.test(w)) { prev = null; continue; }
+                uni.set(w, (uni.get(w) || 0) + 1);
+                const alpha = /^\p{L}+$/u.test(w);
+                if (alpha && prev && m.index - prevEnd === 1) {
+                    const k = prev + ' ' + w;
+                    bi.set(k, (bi.get(k) || 0) + 1);
+                }
+                prev = alpha ? w : null;
+                prevEnd = m.index + w.length;
+            }
+        }
+
+        function pruneVocabMap(map) {
+            for (const [k, c] of map) if (c <= 1) map.delete(k);
+        }
+
+        function buildPhraseList() {
+            const counts = new Map();
+            const add = (text, w) => {
+                const t = String(text || '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+                if (t.length < 3 || t.length > 60 || /^[\d\s.,\-]+$/.test(t)) return;
+                counts.set(t, (counts.get(t) || 0) + w);
+            };
+            CURATED_QUERY_TERMS.forEach(x => add(x, 50));
+            Object.entries(hvacDictionary).forEach(([k, list]) => { add(k, 40); list.forEach(x => add(x, 20)); });
+            userSpecParams.forEach(sp => { add(sp.name, 40); (sp.keys || []).forEach(k => add(k, 30)); });
+            for (const sheet of excelDataSheets) {
+                for (const row of (sheet.data || []).slice(0, 400)) {
+                    for (const cell of (row || []).slice(0, 3)) if (typeof cell === 'string') add(cell, 3);
+                }
+            }
+            return [...counts].map(([t, c]) => ({ t, n: removeVietnameseTones(t), c }));
+        }
+
+        function hydrateVocab(uniPairs, biPairs) {
+            vocab.uni = uniPairs.map(([t, c]) => { const n = removeVietnameseTones(t); return { t, n, c, alpha: /^[a-z]+$/.test(n) }; });
+            vocab.uniNorm = new Map();
+            for (const e of vocab.uni) { const cur = vocab.uniNorm.get(e.n); if (!cur || e.c > cur.c) vocab.uniNorm.set(e.n, e); }
+            vocab.bi = biPairs.map(([t, c]) => ({ t, n: removeVietnameseTones(t), c }));
+            vocab.biMap = new Map(biPairs);
+            vocab.ph = buildPhraseList();
+            vocab.phSet = new Set(vocab.ph.map(e => e.t));
+            vocab.ready = true;
+        }
+
+        // Dựng từ điển từ chỉ mục PDF + Excel (chạy nền, không làm đơ giao diện, lưu lại để lần sau mở là có ngay)
+        async function initVocabulary() {
+            const token = ++vocabBuildToken;
+            try {
+                await indexLoadPromise;
+                if (token !== vocabBuildToken) return;
+                const sig = vocabSignature();
+                const saved = await getCachedPdfText('vocab1');
+                if (saved && saved.sig === sig && Array.isArray(saved.uni)) { hydrateVocab(saved.uni, saved.bi || []); return; }
+
+                const uni = new Map(), bi = new Map();
+                let sliceStart = performance.now();
+                const yieldIfNeeded = async () => {
+                    if (performance.now() - sliceStart > 25) {
+                        await new Promise(r => setTimeout(r, 0));
+                        sliceStart = performance.now();
+                    }
+                };
+                for (const file of allMasterFiles) {
+                    const entry = pdfIndex.get(fileIdxKey(file));
+                    if (!entry || entry.sig !== fileSig(file)) continue;
+                    for (const pg of entry.pages) {
+                        if (pg && pg.lowerText) addTextToVocab(pg.lowerText, uni, bi);
+                        await yieldIfNeeded();
+                        if (token !== vocabBuildToken) return;
+                    }
+                    if (bi.size > 700000) pruneVocabMap(bi);
+                    if (uni.size > 400000) pruneVocabMap(uni);
+                }
+                for (const sheet of excelDataSheets) {
+                    for (const row of (sheet.data || []).slice(0, 1500)) {
+                        for (const cell of (row || []).slice(0, 12)) {
+                            if (typeof cell === 'string' && cell.length >= 3 && cell.length <= 80) addTextToVocab(cell.normalize('NFC').toLowerCase(), uni, bi);
+                        }
+                    }
+                    await yieldIfNeeded();
+                }
+                if (token !== vocabBuildToken) return;
+                const uniPairs = [...uni].filter(([w, c]) => c >= 2).sort((a, b) => b[1] - a[1]).slice(0, 120000);
+                const biPairs = [...bi].filter(([w, c]) => c >= 3).sort((a, b) => b[1] - a[1]).slice(0, 150000);
+                hydrateVocab(uniPairs, biPairs);
+                putIndexEntries([{ key: 'vocab1', value: { sig, uni: uniPairs, bi: biPairs } }]);
+            } catch (e) { console.warn('Lỗi dựng từ điển gợi ý', e); }
+        }
+
+        // Khoảng cách chỉnh sửa (có hoán đổi 2 ký tự liền kề), dừng sớm khi vượt ngưỡng
+        function editDistance(a, b, maxD) {
+            if (Math.abs(a.length - b.length) > maxD) return maxD + 1;
+            const al = a.length, bl = b.length;
+            let prev2 = null, prev = Array.from({ length: bl + 1 }, (_, j) => j);
+            for (let i = 1; i <= al; i++) {
+                const cur = [i];
+                let rowMin = i;
+                for (let j = 1; j <= bl; j++) {
+                    let v = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+                    if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2] + 1);
+                    cur[j] = v;
+                    if (v < rowMin) rowMin = v;
+                }
+                if (rowMin > maxD) return maxD + 1;
+                prev2 = prev; prev = cur;
+            }
+            return prev[bl];
+        }
+
+        function fuzzyWord(n) {
+            const maxD = n.length <= 4 ? 1 : 2;
+            let best = null, bestD = maxD + 1;
+            for (const e of vocab.uni) {
+                if (!e.alpha || e.c < 3 || e.n.length < 3 || Math.abs(e.n.length - n.length) > maxD) continue;
+                if (maxD > 1 && e.n[0] !== n[0]) continue;
+                const d = editDistance(n, e.n, maxD);
+                if (d < bestD || (d === bestD && best && e.c > best.c)) { bestD = d; best = e; }
+            }
+            return best && bestD <= maxD ? best.t : null;
+        }
+
+        // Sửa lỗi chính tả: thay các từ không có trong tài liệu bằng từ gần giống nhất có trong tài liệu
+        function suggestQueryFix(text, lastIsPrefix) {
+            if (!vocab.ready) return null;
+            const words = String(text || '').toLowerCase().split(/\s+/).filter(Boolean);
+            let changed = false;
+            const fixed = words.map((w, i) => {
+                if (w.length < 3 || !/^\p{L}+$/u.test(w)) return w;
+                const n = removeVietnameseTones(w);
+                if (vocab.uniNorm.has(n)) return w;
+                if (lastIsPrefix && i === words.length - 1 && vocab.uni.some(e => e.n.startsWith(n))) return w;
+                const f = fuzzyWord(n);
+                if (f) { changed = true; return f; }
+                return w;
+            });
+            return changed ? fixed.join(' ') : null;
+        }
+
+        // Gợi ý khi gõ: cụm từ có trong tài liệu (gõ không dấu cũng được), kèm số lần xuất hiện
+        // Gợi ý bản dịch tiếng Anh khi gõ cụm tiếng Việt có trong từ điển cụm từ (vd "kích thước dây" => 🌐 wire size)
+        function glossarySuggest(inputText) {
+            const typed = removeVietnameseTones(String(inputText || '').toLowerCase()).replace(/\s+/g, ' ').trim();
+            if (typed.length < 3) return [];
+            const out = [], seen = new Set();
+            const entries = Object.entries(hvacPhrases).sort((a, b) => a[0].length - b[0].length);
+            for (const [k, list] of entries) {
+                const kn = removeVietnameseTones(k);
+                if (!(kn === typed || (typed.length >= 4 && kn.startsWith(typed)))) continue;
+                list.filter(x => !/[à-ỹ]/i.test(x)).slice(0, 3).forEach(x => { if (!seen.has(x)) { seen.add(x); out.push({ t: x, kind: 'tr', score: 4000 }); } });
+            }
+            return out.slice(0, 4);
+        }
+
+        function smartSuggest(inputText) {
+            const gl = glossarySuggest(inputText);
+            if (!vocab.ready) return gl.length ? gl : null;
+            const lowered = String(inputText || '').toLowerCase().replace(/\s+/g, ' ');
+            const trimmed = lowered.trim();
+            if (!trimmed) return null;
+            const endsWithSpace = /\s$/.test(lowered);
+            const q = removeVietnameseTones(trimmed) + (endsWithSpace ? ' ' : '');
+            const words = trimmed.split(' ');
+            const out = new Map();
+            const push = (t, score, kind, hint) => {
+                if (!t || t === trimmed) return;
+                const cur = out.get(t);
+                if (!cur || score > cur.score) out.set(t, { t, score, kind: kind || 'phrase', hint });
+            };
+
+            for (const e of vocab.ph) if (e.n.startsWith(q)) push(e.t, 3000 + Math.log(e.c + 1));
+            if (words.length <= 2) for (const e of vocab.bi) if (e.n.startsWith(q)) push(e.t, 2000 + Math.log(e.c + 1), 'phrase', e.c);
+
+            const headRaw = endsWithSpace ? trimmed : words.slice(0, -1).join(' ');
+            // Gõ không dấu ("cong suat l") -> phần đã gõ được phục hồi dấu theo từ phổ biến nhất trong tài liệu
+            const head = headRaw.split(' ').map(w => (w && w === removeVietnameseTones(w) && vocab.uniNorm.has(w)) ? vocab.uniNorm.get(w).t : w).join(' ');
+            const prevW = endsWithSpace ? words[words.length - 1] : words[words.length - 2];
+            const lastN = endsWithSpace ? '' : removeVietnameseTones(words[words.length - 1]);
+            if (prevW) {
+                const pref = removeVietnameseTones(prevW) + ' ' + lastN;
+                for (const e of vocab.bi) if (e.n.startsWith(pref)) push((head ? head + ' ' : '') + e.t.split(' ')[1], 1500 + Math.log(e.c + 1), 'phrase', e.c);
+            }
+            if (!endsWithSpace && lastN) {
+                for (const e of vocab.uni) if (e.n.startsWith(lastN) && e.n !== lastN) push((head ? head + ' ' : '') + e.t, 1000 + Math.log(e.c + 1), 'phrase', e.c);
+            }
+            if (out.size < 5) {
+                const qt = q.trim();
+                for (const e of vocab.ph) if (e.n.includes(qt)) push(e.t, 500 + Math.log(e.c + 1));
+            }
+
+            const list = [...out.values()].sort((a, b) => b.score - a.score).slice(0, 12);
+            const fix = suggestQueryFix(trimmed, !endsWithSpace);
+            if (fix && fix !== trimmed) list.unshift({ t: fix, kind: 'fix' });
+            [...gl].reverse().forEach(g => { if (g.t !== trimmed) list.unshift(g); });   // bản dịch tiếng Anh lên đầu (giữ thứ tự: wire size trước)
+            return list;
+        }
+
+        // Tách câu gõ tự nhiên thành các ý (cụm từ có trong tài liệu được giữ nguyên, bỏ từ nối)
+        function splitQueryUnits(text) {
+            const words = String(text || '').toLowerCase().replace(/\([^)]*\)/g, ' ').split(/\s+/).filter(Boolean);
+            const known = phrase => vocab.ready && (vocab.biMap.has(phrase) || vocab.phSet.has(phrase));
+            const units = [];
+            let i = 0;
+            while (i < words.length) {
+                if (QUERY_STOPWORDS.has(words[i])) { i++; continue; }
+                // cụm trong từ điển cụm từ (kích thước dây, dây nguồn...) giữ nguyên là 1 ý, không tách ra dịch từng từ
+                let phraseLen = 0;
+                const pk = hvacPhraseKeysNoTone();
+                for (let n = Math.min(4, words.length - i); n >= 2; n--) {
+                    if (pk.includes(removeVietnameseTones(words.slice(i, i + n).join(' ')))) { phraseLen = n; break; }
+                }
+                if (phraseLen) { units.push(words.slice(i, i + phraseLen).join(' ')); i += phraseLen; continue; }
+                const tri = words.slice(i, i + 3).join(' '), duo = words.slice(i, i + 2).join(' ');
+                if (i + 2 < words.length && vocab.ready && vocab.phSet.has(tri)) { units.push(tri); i += 3; }
+                else if (i + 1 < words.length && known(duo)) { units.push(duo); i += 2; }
+                else { units.push(words[i]); i++; }
+            }
+            return units;
+        }
+
+        // Nhận ra mã model trong câu gõ ("CO2 kết nối VAM" -> model VAM, từ khóa "CO2 kết nối")
+        function getKnownModelFamilies() {
+            const fam = new Set(['VAM', 'FVGR', 'RUR', 'FDN', 'FXSQ', 'FXAQ', 'FXFQ', 'FXMQ', 'FCF', 'FBA', 'FTKB', 'FTKC', 'FTKF', 'FTKM', 'FTKZ', 'CTKM', 'CTKC', 'RXYQ', 'RXQ']);
+            (autocompleteValues.modelDatalist || []).forEach(m => {
+                const lead = (String(m).match(/^[A-Z]+/) || [''])[0];
+                if (lead.length >= 3 && lead.length <= 6) fam.add(lead);
+            });
+            return fam;
+        }
+        function isLikelyModelToken(tok) {
+            const t = String(tok).replace(/^[,;:.]+|[,;:.]+$/g, '');
+            if (t.length < 3) return false;
+            if (/^(co2|r32|r410a|r22|r407c|r134a|rs485|iso\d*|ip\d+|wifi|hz|50hz|60hz)$/i.test(t)) return false;
+            if (/^[A-Za-z]{2,6}\d{1,4}[A-Za-z0-9\-]*$/.test(t)) return true;
+            if (/^[A-Z]{3,6}$/.test(t) && getKnownModelFamilies().has(t)) return true;
+            return false;
+        }
+        function smartParseQuery() {
+            const qEl = document.getElementById('queryInput');
+            const note = document.getElementById('smartParseNote');
+            const text = qEl.value.trim();
+            if (!text || getActiveSearchModels().length) return false;
+            const modelToks = [], rest = [];
+            text.split(/\s+/).forEach(t => (isLikelyModelToken(t) ? modelToks : rest).push(t));
+            if (!modelToks.length || !rest.length) return false;
+            modelToks.forEach(t => {
+                const m = t.replace(/^[,;:.]+|[,;:.]+$/g, '').toUpperCase();
+                if (!searchModelList.includes(m)) searchModelList.push(m);
+            });
+            renderSearchModelList();
+            qEl.value = rest.join(' ');
+            if (note) {
+                note.style.display = 'block';
+                note.innerHTML = `🧠 Đã hiểu: Model <b>${escapeHtml(modelToks.join(', ').toUpperCase())}</b> · Từ khóa <b>${escapeHtml(qEl.value)}</b>`;
+                clearTimeout(note._t);
+                note._t = setTimeout(() => { note.style.display = 'none'; }, 12000);
+            }
+            return true;
+        }
+        function applyQuerySuggestion(text) {
+            document.getElementById('queryInput').value = text;
+            searchMain();
+        }
+
+        /* ================= HÀNG TỪ ĐỒNG NGHĨA (bấm ✖ để bỏ từ không cần) ================= */
+        function renderTermChips(groups) {
+            const box = document.getElementById('termChipsBox');
+            if (!box) return;
+            window.termChipKeys = [];
+            const rows = [];
+            (groups || []).forEach(g => {
+                const best = new Map();
+                const mainKey = termKey(g.unit);
+                (g.variants || []).forEach(v => {
+                    const k = termKey(v);
+                    if (!k || k === mainKey) return;
+                    const cur = best.get(k);
+                    if (!cur || (cur === k && v !== k)) best.set(k, v);   // ưu tiên bản có dấu
+                });
+                rows.push({ unit: g.unit, chips: [...best] });
+            });
+            const hasChips = rows.some(r => r.chips.length);
+            if (!hasChips && !excludedTermKeys.size) { box.style.display = 'none'; box.innerHTML = ''; return; }
+            let html = '<div class="tc-title">🔎 Đang tìm theo (bấm ✖ để bỏ từ không cần):</div>';
+            rows.forEach(r => {
+                html += `<div class="tc-row"><span class="term-chip main">${escapeHtml(r.unit)}</span>` +
+                    r.chips.map(([k, v]) => {
+                        const idx = window.termChipKeys.push(k) - 1;
+                        return `<span class="term-chip">${escapeHtml(v)}<button type="button" title="Bỏ từ này khỏi lần tìm" onclick="removeTermChip(${idx})">✖</button></span>`;
+                    }).join('') + '</div>';
+            });
+            if (excludedTermKeys.size) html += `<div class="tc-restore">Đã bỏ ${excludedTermKeys.size} từ · <a href="#" onclick="restoreTermChips(); return false;">Khôi phục tất cả</a></div>`;
+            box.innerHTML = html;
+            box.style.display = 'block';
+        }
+        function removeTermChip(idx) {
+            const key = (window.termChipKeys || [])[idx];
+            if (!key) return;
+            excludedTermKeys.add(key);
+            searchMain();
+        }
+        function restoreTermChips() {
+            excludedTermKeys.clear();
+            searchMain();
+        }
+
+        /* ================= CHẨN ĐOÁN: VÌ SAO TOOL KHÔNG THẤY CHỮ TRÊN TRANG ĐANG XEM ================= */
+        function analyzePageTextItems(items, view, viewport, keywords, models) {
+            const nonEmpty = items.filter(i => i.str && i.str.trim());
+            const rawText = items.map(i => i.str || '').join(' ');
+            const rawNorm = rawText.normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' ').toLowerCase();
+            // Bộ lọc "chữ ma" hiện đang dùng trong chỉ mục (so với khung đã xoay của trang)
+            const keptByIndexRule = items.filter(item => {
+                if (!item.str || item.str.trim() === '') return true;
+                const x = item.transform[4], y = item.transform[5];
+                if (Math.abs(item.transform[0]) < 0.01 && Math.abs(item.transform[3]) < 0.01) return false;
+                if (x < -150 || y < -150 || x > viewport.width + 150 || y > viewport.height + 150) return false;
+                return true;
+            });
+            // Khung thật của trang (không bị đảo khi trang xoay)
+            const insideRealBox = items.filter(item => {
+                if (!item.str || item.str.trim() === '') return false;
+                const x = item.transform[4], y = item.transform[5];
+                return x >= view[0] - 150 && x <= view[2] + 150 && y >= view[1] - 150 && y <= view[3] + 150;
+            });
+            const keptNorm = keptByIndexRule.map(i => i.str || '').join(' ').normalize('NFC').replace(/\s+/g, ' ').toLowerCase();
+            const checks = [];
+            (keywords || []).forEach(k => {
+                const kk = String(k || '').toLowerCase().trim();
+                if (!kk) return;
+                checks.push({
+                    label: `Từ khóa "${kk}"`,
+                    inRaw: rawNorm.includes(kk),
+                    inIndex: keptNorm.includes(kk),
+                    spaced: !rawNorm.includes(kk) && rawNorm.replace(/ /g, '').includes(kk.replace(/ /g, ''))
+                });
+            });
+            (models || []).forEach(m => {
+                const mm = buildModelMatchers(m);
+                if (!mm) return;
+                checks.push({ label: `Model "${m}"`, inRaw: mm.test(rawNorm, ''), inIndex: mm.test(keptNorm, ''), spaced: false });
+            });
+            let verdict;
+            if (nonEmpty.length === 0) verdict = '❌ Trang KHÔNG có lớp chữ (là hình ảnh hoặc chữ đã bị chuyển thành đường nét). Tool không tìm được chữ trên trang này. Bấm 🔤 OCR trang ảnh (thanh trên cùng) để nhận dạng chữ trong hình.';
+            else if (checks.some(c => c.inRaw && !c.inIndex)) verdict = '⚠️ Chữ CÓ trong trang nhưng bộ lọc chỉ mục đang loại nhầm (thường do trang bị xoay). Cần sửa bộ lọc rồi lập lại chỉ mục.';
+            else if (checks.some(c => c.spaced)) verdict = '⚠️ Chữ bị tách rời từng ký tự/từ nên không ghép lại thành cụm tìm được.';
+            else if (checks.filter(c => c.label.startsWith('Từ khóa')).length && checks.filter(c => c.label.startsWith('Từ khóa')).every(c => !c.inRaw)) verdict = 'ℹ️ Trang có chữ nhưng KHÔNG chứa từ khóa đang tìm dưới dạng chữ (có thể dòng đó chỉ là hình vẽ hoặc chữ đã chuyển thành đường nét).';
+            else if (checks.filter(c => c.label.startsWith('Model')).length && checks.filter(c => c.label.startsWith('Model')).every(c => !c.inRaw)) verdict = 'ℹ️ Trang có chữ nhưng KHÔNG chứa model đang tìm dưới dạng chữ.';
+            else verdict = '✅ Chữ của trang đọc được bình thường và có chứa nội dung đang tìm.';
+            return { total: items.length, nonEmpty: nonEmpty.length, chars: rawText.length, keptByIndexRule: keptByIndexRule.filter(i => i.str && i.str.trim()).length, insideRealBox: insideRealBox.length, checks, verdict, sample: rawNorm.slice(0, 300) };
+        }
+
+        function getVisiblePdfPage() {
+            const container = document.getElementById('pdfScrollContainer');
+            if (activePreviewHit && activePreviewHit.pageNum && activePreviewHit.type !== 'excel') {
+                const w = document.getElementById(`pdf-page-${activePreviewHit.pageNum}`);
+                if (w) {
+                    const top = w.offsetTop, bottom = top + w.offsetHeight;
+                    if (container.scrollTop + container.clientHeight / 2 >= top - 40 && container.scrollTop + container.clientHeight / 2 <= bottom + 40) return activePreviewHit.pageNum;
+                }
+            }
+            const wrappers = Array.from(container.querySelectorAll('[id^="pdf-page-"]'));
+            const mid = container.scrollTop + container.clientHeight / 3;
+            let found = 1;
+            for (const w of wrappers) { if (w.offsetTop <= mid) found = parseInt(w.id.replace('pdf-page-', ''), 10) || found; }
+            return found;
+        }
+
+        async function diagnoseCurrentPage() {
+            if (!currentPdfDoc) { alert('Chưa mở tài liệu PDF nào.'); return; }
+            const pageNum = getVisiblePdfPage();
+            try {
+                const page = await currentPdfDoc.getPage(pageNum);
+                const content = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
+                const viewport = page.getViewport({ scale: 1.0 });
+                const keyword = (document.getElementById('queryInput').value || '').trim();
+                const r = analyzePageTextItems(content.items || [], page.view, viewport, keyword ? [keyword] : [], getActiveSearchModels());
+                const title = document.getElementById('activeDocTitle').textContent;
+                const lines = [
+                    `${title} · trang ${pageNum}`,
+                    `Xoay trang (Rotate): ${page.rotate || 0}° · Khung trang: [${page.view.map(n => Math.round(n)).join(', ')}] · Khung hiển thị: ${Math.round(viewport.width)} × ${Math.round(viewport.height)}`,
+                    `Số mục chữ có nội dung: ${r.nonEmpty} (tổng ${r.total}) · Số ký tự: ${r.chars}`,
+                    `Mục chữ giữ lại theo bộ lọc chỉ mục: ${r.keptByIndexRule} · Nằm trong khung thật của trang: ${r.insideRealBox}`,
+                    ''
+                ];
+                r.checks.forEach(c => lines.push(`${c.label}: trong chữ gốc = ${c.inRaw ? 'CÓ' : 'KHÔNG'} · trong chỉ mục = ${c.inIndex ? 'CÓ' : 'KHÔNG'}${c.spaced ? ' · (có nhưng bị tách rời)' : ''}`));
+                lines.push('', r.verdict, '', 'Đoạn chữ đầu trang:', r.sample || '(trống)');
+                const text = lines.join('\n');
+
+                let overlay = document.getElementById('diagOverlay');
+                if (overlay) overlay.remove();
+                overlay = document.createElement('div');
+                overlay.id = 'diagOverlay';
+                overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+                overlay.innerHTML = `<div style="background:#1b1f24;color:#e6e6e6;border:1px solid #3c4a57;border-radius:8px;max-width:760px;width:100%;max-height:85vh;overflow:auto;padding:16px;">
+                    <div style="font-weight:bold;color:#5bc0be;margin-bottom:8px;">🩺 Kiểm tra lớp chữ của trang</div>
+                    <pre style="white-space:pre-wrap;word-break:break-word;font-size:12px;line-height:1.5;margin:0 0 12px;">${escapeHtml(text)}</pre>
+                    <button class="btn-card" id="diagCopy" style="padding:5px 12px;">Sao chép</button>
+                    <button class="btn-card" id="diagClose" style="padding:5px 12px;margin-left:6px;">Đóng</button></div>`;
+                document.body.appendChild(overlay);
+                overlay.querySelector('#diagClose').onclick = () => overlay.remove();
+                overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+                overlay.querySelector('#diagCopy').onclick = () => { try { navigator.clipboard.writeText(text); } catch (e) {} };
+            } catch (e) {
+                alert('Không kiểm tra được trang: ' + (e && e.message ? e.message : e));
+            }
+        }
+
         function switchTab(tabId) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -1367,7 +1663,7 @@
             } catch (e) {}
         }
 
-        const IDX_PREFIX = 'idx4|';
+        const IDX_PREFIX = 'idx5|';   // idx5: chữ giãn ký tự đã được gộp ("M F A" -> "MFA"); chỉ mục cũ tự quét lại
         let pdfIndex = new Map();               // idxKey -> { sig, pages:[{pageNum, fullText, lowerText}] }
         let indexLoadPromise = Promise.resolve();
         const inflightIndex = new Map();
@@ -1382,8 +1678,8 @@
         function hydrateIndexPages(pages) {
             return (pages || []).filter(p => p && p.pageNum).map(p => ({
                 pageNum: p.pageNum,
-                fullText: (p.fullText || '').normalize('NFC'),
-                lowerText: (p.fullText || '').normalize('NFC').toLowerCase()
+                fullText: (p.fullText || '').normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' '),
+                lowerText: (p.fullText || '').normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' ').toLowerCase()
             }));
         }
 
@@ -1444,6 +1740,38 @@
         }
         function scanConcurrency() { return Math.max(2, getWorkerPool().length); }
 
+        /* Nhiều PDF (xuất từ CAD, phông thay thế...) đặt từng ký tự cách đều nhau; pdf.js trả về thành "M F A", "M C A / M F A", "F L A"
+           (có dấu cách chen giữa) nên tìm "mfa" không khớp và cũng không khoanh được. Hàm này gộp các mục chữ có DẠNG GIÃN KÝ TỰ
+           (mọi mảnh đều 1 ký tự, cách nhau đúng 1 dấu cách) về chữ liền. Khoảng cách từ thật (>=2 dấu cách) được giữ.
+           map[k] = vị trí ký tự thứ k của chuỗi mới trong chuỗi gốc (để ô khoanh vẫn rơi đúng chỗ). */
+        function collapseLetterSpacingMap(s) {
+            if (!s || s.length < 3 || s.indexOf(' ') < 0) return { str: s, map: null };
+            const out = [], map = [];
+            let changed = false;
+            const pushSeg = (seg, off) => {
+                const tokens = seg.split(' ');
+                const allSingle = tokens.length >= 3 && tokens.every(x => x.length === 1);
+                const pairLetters = tokens.length === 2 && /^[A-Za-zÀ-ỹ]$/.test(tokens[0]) && /^[A-Za-zÀ-ỹ]$/.test(tokens[1]);
+                if (allSingle || pairLetters) {
+                    changed = true;
+                    let pos = off;
+                    tokens.forEach(tk => { out.push(tk); map.push(pos); pos += 2; });
+                } else {
+                    for (let i = 0; i < seg.length; i++) { out.push(seg[i]); map.push(off + i); }
+                }
+            };
+            const re = / {2,}/g;
+            let last = 0, m;
+            while ((m = re.exec(s)) !== null) {
+                pushSeg(s.slice(last, m.index), last);
+                out.push(' '); map.push(m.index);
+                last = m.index + m[0].length;
+            }
+            pushSeg(s.slice(last), last);
+            return changed ? { str: out.join(''), map } : { str: s, map: null };
+        }
+        function collapseLetterSpacing(s) { return collapseLetterSpacingMap(s).str; }
+
         async function extractPageText(pdf, pageNum) {
             try {
                 const page = await pdf.getPage(pageNum);
@@ -1456,7 +1784,7 @@
                     if (x < -150 || y < -150 || x > viewport.width + 150 || y > viewport.height + 150) return false;
                     return true;
                 });
-                const fullText = validItems.map(item => item.str || '').join(' ').normalize('NFC');
+                const fullText = validItems.map(item => collapseLetterSpacing(item.str || '')).join(' ').normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' ');
                 try { page.cleanup(); } catch (e) {}
                 return { pageNum, fullText, lowerText: fullText.toLowerCase() };
             } catch (err) {
@@ -1487,6 +1815,7 @@
                     if (onProgress) onProgress(end, pdf.numPages);
                     await new Promise(r => setTimeout(r, 0));
                 }
+                try { await ocrReapplyToPages(file, pages); } catch (e) { console.warn('Ghép lại OCR', e); }   // quét lại file đã OCR thì chữ OCR không bị mất
                 pdfIndex.set(key, { sig, pages });
                 putIndexEntries([{ key, value: { sig, pages: pages.map(p => ({ pageNum: p.pageNum, fullText: p.fullText })) } }]);
                 return pages;
@@ -1537,6 +1866,7 @@
             await Promise.all(Array.from({ length: scanConcurrency() }, worker));
             bgIndexing = false;
             updateStatusUI(cancelBgIndex ? 'Đã dừng lập chỉ mục (phần đã quét vẫn được lưu).' : '✅ Đã lập chỉ mục xong, các lần mở sau không quét lại.');
+            initVocabulary();
         }
 
         async function saveSourceHandle(key, value) {
@@ -1675,6 +2005,7 @@
                 configureDocumentTypeFilter();
                 applyAllFilters();
                 refreshAutocompleteSuggestions();
+                initVocabulary();
                 updateStatusUI(`Đã đồng bộ xong dữ liệu.`);
             } catch (error) {
                 console.error('Không thể làm mới nguồn tài liệu:', error);
@@ -1837,6 +2168,7 @@
             indexLoadPromise = loadIndexForFiles(allMasterFiles);
             await parseOfficeFiles(officeFiles);
             refreshAutocompleteSuggestions(); 
+            initVocabulary();
             updateStatusUI('Folder đã nạp xong.');
         }
 
@@ -2168,7 +2500,7 @@
         // 2. Kiểm tra Từ khóa xuất hiện trên trang này
         const hasExactFull = (exactFullQuery && pageData.lowerText.includes(exactFullQuery)) || 
                              (cleanQuery && pageData.lowerText.includes(cleanQuery));
-        const matchedTerms = matchQueryTerms(queryTerms, pageData.lowerText).sort((a, b) => b.length - a.length);
+        const matchedTerms = queryTerms.filter(t => pageData.lowerText.includes(t));
         const hasQuery = matchedTerms.length > 0;
         if (isModelOnPage) matchStats.model++;
         if (hasQuery || hasExactFull) matchStats.query++;
@@ -2446,9 +2778,7 @@
 
         /* ================= TÌM TỪ KHÓA TRONG OFFICE (hiển thị chung tab Preview) ================= */
         async function searchOfficeInto(box, query, models) {
-            const _qTerms = await expandBilingualTermsFast(query);
-            const terms = [...new Set(_qTerms.map(normalizeExcelSearchText).filter(Boolean))];
-            const officeMatch = normText => { const m = matchQueryTerms(_qTerms, normText, normalizeExcelSearchText); return m.length ? normalizeExcelSearchText(m.sort((a, b) => b.length - a.length)[0]) : null; };
+            const terms = [...new Set((await expandBilingualTermsFast(query)).map(normalizeExcelSearchText).filter(Boolean))];
             const cleanModels = (models || []).map(compactModelCode).filter(Boolean);
             let excelHits = 0, wordHits = 0;
             const MAX_OFFICE = 30;
@@ -2513,7 +2843,7 @@
                             const rowLabel = getRowSpecLabel(matrix, r, loc.col);
                             if (!rowLabel || invalidValueTexts.includes(rowLabel.toLowerCase())) continue;
 
-                            const matchedTerm = officeMatch(normalizeExcelSearchText(rowLabel));
+                            const matchedTerm = terms.find(t => normalizeExcelSearchText(rowLabel).includes(t));
                             if (matchedTerm) {
                                 excelHits++;
                                 previewHits.push({ type: 'excel', sheetName: sheet.sheetName, matrix, sheet, rowIdx: loc.row, colIdx: loc.col, headerRow: r, specRows: [r], searchTerm: matchedTerm });
@@ -2530,7 +2860,7 @@
                         for (let c = 0; c < Math.min(row.length, 40); c++) {
                             const cellVal = String(row[c] || '').trim();
                             if (!cellVal) continue;
-                            const matchedTerm = officeMatch(normalizeExcelSearchText(cellVal));
+                            const matchedTerm = terms.find(t => normalizeExcelSearchText(cellVal).includes(t));
                             if (matchedTerm) {
                                 excelHits++;
                                 previewHits.push({ type: 'excel', sheetName: sheet.sheetName, matrix, sheet, rowIdx: r, colIdx: c, headerRow: r, specRows: [r], searchTerm: matchedTerm });
@@ -2547,7 +2877,7 @@
                 if (!inSelectedDocFolder(doc.relPath)) continue;
                 const fullText = doc.text || '';
                 const lowerText = fullText.toLowerCase();
-                const matchedTerm = officeMatch(normalizeExcelSearchText(lowerText));
+                const matchedTerm = terms.find(t => lowerText.includes(t));
                 if (!matchedTerm) continue;
                 if (cleanModels.length && !cleanModels.some(m => lowerText.replace(/[^a-z0-9]/g, '').includes(m))) continue;
                 wordHits++;
@@ -2564,6 +2894,7 @@
         // Có cả Model và Từ khóa -> tìm theo tài liệu (kèm trang có cả hai trên cùng 1 trang).
         // Chỉ có 1 trong 2 -> dùng bộ tìm cũ để vẫn tìm được.
         async function searchMain() {
+            smartParseQuery();
             const models = getActiveSearchModels();
             const query = document.getElementById('queryInput').value.trim();
             if (models.length > 0 && query) return searchSameDocument();
@@ -2571,6 +2902,7 @@
         }
 
         async function searchAll() {
+            excludedTermKeys.clear(); lastChipQuery = ''; renderTermChips([]);
             try {
                 const models = getActiveSearchModels();
                 const query = document.getElementById('queryInput').value.trim().normalize('NFC');
@@ -2647,16 +2979,26 @@
                 activeModels = models;
                 recordSearchHistory(models, query);
 
-                const _rawTerms = await expandBilingualTermsFast(query);
-                const queryTerms = _rawTerms.map(x => String(x).toLowerCase());
-                queryTerms.groups = _rawTerms.groups; queryTerms.full = _rawTerms.full;
+                if (lastChipQuery !== query) { excludedTermKeys.clear(); lastChipQuery = query; }   // đổi từ khóa -> bỏ danh sách từ đã loại
+                const queryTerms = (await expandBilingualTermsFast(query)).map(x => String(x).toLowerCase());
+                // Câu có nhiều ý ("co2 kết nối"): trang chứa đủ các ý (mỗi ý hoặc từ đồng nghĩa của nó) cũng được tính
+                const queryUnits = splitQueryUnits(query);
+                let unitVariants = [];
+                if (queryUnits.length >= 2) {
+                    unitVariants = (await Promise.all(queryUnits.map(u => expandBilingualTermsFast(u))))
+                        .map(list => [...new Set(list.map(x => String(x).toLowerCase()))].filter(x => x.length >= 2));
+                }
                 const exactFull = query.toLowerCase().trim();
                 const cleanQuery = exactFull.replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
                 const modelMatchers = models.map(m => ({ m, mm: buildModelMatchers(m) })).filter(x => x.mm);
+                renderTermChips(unitVariants.length >= 2
+                    ? queryUnits.map((u, i) => ({ unit: u, variants: unitVariants[i] }))
+                    : [{ unit: cleanQuery, variants: queryTerms }]);
 
                 activeHighlightTerms = [...new Set([
                     ...models.flatMap(m => [m.trim().toLowerCase(), m.replace(/[^a-z0-9]/gi, '').toLowerCase()]),
                     ...queryTerms,
+                    ...unitVariants.flat(),
                     ...(cleanQuery ? [cleanQuery] : [])
                 ])].filter(x => x && x.length >= 2 && !/^\d+$/.test(x));
                 activeHighlightTerms.sort((a, b) => b.length - a.length);
@@ -2677,7 +3019,7 @@
                 if (session !== scanSessionId) return;
 
                 const files = [...filteredPdfFiles];
-                const stats = { files: files.length, both: 0, modelOnly: 0, queryOnly: 0 };
+                const stats = { files: files.length, both: 0, modelOnly: 0, queryOnly: 0, modelOnlyFiles: [], queryOnlyFiles: [] };
                 const results = [];
                 const stopNow = () => cancelScanRequested || session !== scanSessionId;
                 const stopBtn = `<button onmousedown="cancelPdfScan()" style="background:#c53030; color:#fff; border:none; padding:3px 8px; border-radius:3px; cursor:pointer; font-weight:bold; font-size:11px;">⏹️ Dừng quét</button>`;
@@ -2692,9 +3034,14 @@
                         const mHit = modelMatchers.find(x => x.mm.test(p.lowerText, ''));
                         const hasClean = !!cleanQuery && p.lowerText.includes(cleanQuery);
                         const hasExact = hasClean || (!!exactFull && p.lowerText.includes(exactFull));
-                        const mt = matchQueryTerms(queryTerms, p.lowerText).sort((a, b) => b.length - a.length);
+                        const mt = queryTerms.filter(x => p.lowerText.includes(x));
+                        let andTerm = '';
+                        if (unitVariants.length >= 2) {
+                            const hits = unitVariants.map(vs => vs.find(v => p.lowerText.includes(v)));
+                            if (hits.every(Boolean)) andTerm = hits.slice().sort((a, b) => b.length - a.length)[0];
+                        }
                         if (mHit) modelPages.push({ page: p, model: mHit.m });
-                        if (hasExact || mt.length) kwPages.push({ page: p, term: hasClean ? cleanQuery : (mt[0] || cleanQuery) });
+                        if (hasExact || mt.length || andTerm) kwPages.push({ page: p, term: hasClean ? cleanQuery : (mt[0] || andTerm || cleanQuery) });
                     }
                     const hasModel = modelPages.length > 0 || !!nameHit;
                     if (hasModel && kwPages.length) {
@@ -2707,8 +3054,13 @@
                             totalPages: (pages || []).length,
                             score: 4000 + bothPages.length * 100 + Math.min(kwPages.length, 50) + (nameHit ? 200 : 0)
                         });
-                    } else if (hasModel) stats.modelOnly++;
-                    else if (kwPages.length) stats.queryOnly++;
+                    } else if (hasModel) {
+                        stats.modelOnly++;
+                        stats.modelOnlyFiles.push(file.name + (modelPages.length ? '' : ' (model chỉ có trong tên file)'));
+                    } else if (kwPages.length) {
+                        stats.queryOnly++;
+                        stats.queryOnlyFiles.push(`${file.name} · tr.${kwPages.slice(0, 5).map(x => x.page.pageNum).join(', ')}`);
+                    }
                 };
 
                 // GIAI ĐOẠN 1: file đã có chỉ mục (tức thì)
@@ -2815,6 +3167,11 @@
                     tabPdf.innerHTML = `<div style="text-align:center; margin-top:30px; color:#ff9800; line-height:1.6;">
                         ❌ Không có tài liệu PDF nào chứa đồng thời Model <b>"${escH(models.join(', '))}"</b> và từ khóa "${escH(query)}".
                         <div style="margin-top:8px; font-size:11px; color:#aaa;">Đã kiểm tra <b>${stats.files}</b> file trong folder đang chọn: <b>${stats.modelOnly}</b> file chỉ có model, <b>${stats.queryOnly}</b> file chỉ có từ khóa.</div>
+                        <details style="margin-top:8px; font-size:11px; color:#aaa; text-align:left;"><summary style="cursor:pointer;">Xem danh sách file đã kiểm tra</summary>
+                            ${stats.modelOnlyFiles.length ? `<div style="margin-top:4px;"><b style="color:#5bc0be;">Chỉ có model:</b><br>${stats.modelOnlyFiles.slice(0, 8).map(escH).join('<br>')}</div>` : ''}
+                            ${stats.queryOnlyFiles.length ? `<div style="margin-top:4px;"><b style="color:#ffb74d;">Chỉ có từ khóa:</b><br>${stats.queryOnlyFiles.slice(0, 8).map(escH).join('<br>')}</div>` : ''}
+                        </details>
+                        ${(() => { const fixQ = suggestQueryFix(query, false); return fixQ && fixQ !== query.toLowerCase() ? `<div style="margin-top:10px; color:#ddd;">💡 Có phải bạn muốn tìm: <a href="#" class="pdf-spec-note" style="font-size:13px; margin-left:2px;" data-q="${escH(fixQ)}" onclick="applyQuerySuggestion(this.dataset.q); return false;">${escH(fixQ)}</a> ?</div>` : ''; })()}
                     </div>`;
                 }
                 statusBar.innerHTML = cancelScanRequested
@@ -2945,38 +3302,7 @@
                     let curSide = modelRole;
                     const seenSides = new Set(modelRole ? [modelRole] : []);
 
-                    const maxScanRow = Math.min(matrix.length, headerRow + 160);   // sheet dài: phần dàn nóng nằm sâu bên dưới
-
-                    // --- Ô GỘP: nhãn chính (vd. "Piping Size", "Môi chất lạnh") đứng ở 1 dòng, các dòng con bên dưới để trống nhãn ---
-                    const UNIT_RE = /^(kw|btu\/h|btu|kg|mm|cm|m|a|v|w|hz|%|db\(a\)|dba|db|m3\/min|m³\/min|m3\/h|m³\/h|l\/s|cfm|w\/w|kw\/kw|°c|hp|rpm|pa|kpa|bar|ph|phase)$/i;
-                    const cellTxt = (rr, c) => String(((matrix[rr] || [])[c]) == null ? '' : matrix[rr][c]).trim();
-                    const labelColOf = rr => { for (let c = 0; c < 2; c++) if (cellTxt(rr, c)) return c; return -1; };
-                    const subTextOf = (rr, fromCol) => {
-                        const lim = Math.min(targetCol, 3);
-                        for (let c = fromCol; c < lim; c++) {
-                            const t = cellTxt(rr, c);
-                            if (t && !UNIT_RE.test(t) && !/^[-+]?[\d.,\s\/]+$/.test(t)) return t;
-                        }
-                        return '';
-                    };
-                    const collectGroupRows = rHead => {
-                        const lc = labelColOf(rHead);
-                        if (lc < 0) return [];
-                        const out = [];
-                        for (let rr = rHead + 1; rr < maxScanRow; rr++) {
-                            let ownLabel = false;
-                            for (let c = 0; c <= lc; c++) if (cellTxt(rr, c)) ownLabel = true;
-                            if (ownLabel || detectSectionSide(matrix[rr], targetCol)) break;   // gặp nhãn mới / đầu mục FCU-CDU => hết nhóm
-                            const v = cellTxt(rr, targetCol);
-                            const sub = subTextOf(rr, lc + 1);
-                            if (!v && !sub) break;                                              // dòng trống => hết nhóm
-                            if (looksLikeModelCode(v)) break;
-                            if (!v || invalidValueTexts.includes(v.toLowerCase())) continue;
-                            out.push({ rr, v, sub });
-                        }
-                        return out;
-                    };
-
+                    const maxScanRow = Math.min(matrix.length, headerRow + 50);
                     for (let r = headerRow + 1; r < maxScanRow; r++) {
                         const rawVal = matrix[r]?.[targetCol];
                         const valStr0 = (rawVal === undefined || rawVal === null) ? '' : String(rawVal).trim();
@@ -3035,23 +3361,8 @@
                                 if (vals.length > 1) cleanVal = vals.join('x') + ' (' + names.join('x') + ')';
                             }
 
-                            // Ô gộp: thông số có nhiều dòng con (Loại / Khối lượng nạp, Liquid / Gas, Cooling / Heating...) => lấy đủ tất cả
-                            const baseId = matchedParam.base || matchedParam.id;
-                            const groupRows = (isDimensionParam(matchedParam) || /^p[1-5]$/.test(baseId) || targetCol < 1) ? [] : collectGroupRows(r);
-                            let headLabel = cleanLbl;
-                            if (groupRows.length) {
-                                const headSub = subTextOf(r, 2);
-                                if (headSub) headLabel = cleanSpecLabel(fullLabel) + ' – ' + headSub + ` [${SIDE_NAME[sideKey]}]`;
-                            }
-                            currentParams.push({ label: headLabel, value: cleanVal, pid: matchedParam.id, pname: matchedParam.name, side: sideKey, row: r, col: targetCol });
+                            currentParams.push({ label: cleanLbl, value: cleanVal, pid: matchedParam.id, pname: matchedParam.name, side: sideKey, row: r, col: targetCol });
                             hitRows.push(r, ...extraRows);
-                            groupRows.forEach((g, gi) => {
-                                const lbl = cleanSpecLabel(fullLabel) + ' – ' + (g.sub || ('dòng ' + (gi + 2))) + ` [${SIDE_NAME[sideKey]}]`;
-                                const gv = cleanSpecValue(g.v);
-                                if (!gv || currentParams.some(p => p.label.toLowerCase() === lbl.toLowerCase())) return;
-                                currentParams.push({ label: lbl, value: gv, pid: matchedParam.id, pname: matchedParam.name, side: sideKey, row: g.rr, col: targetCol });
-                                hitRows.push(g.rr);
-                            });
                         }
                     }
 
@@ -3420,7 +3731,7 @@
                     const lz = labelZone(lines[r]);
                     if (lz.length && lines[r].items.length > lz.length) outerX = Math.min(outerX, ...lz.map(item => item.x));
                 }
-                const isUnitText = t => /^(kw|btu\/h|kg|mm|cm|m|a|v|w|hz|%|db\s*\(a\)|dba|db|m[³3]\/(phút|phut|min|h|giờ)|l\/s|cfm|l\/h|kcal\/h|°c\w*|hp|rpm|w\/w|kw\/kw|btu\/w|btu\/wh|pa|kpa|mpa|bar|ø)$/i.test(String(t).trim());
+                const isUnitText = t => /^(kw|btu\/h|kg|mm|cm|m|a|v|w|hz|%|db\s*\(a\)|dba|db|m[³3]\/(phút|phut|min|h|giờ)|l\/s|cfm|l\/h|kcal\/h|°c\w*|hp|rpm)$/i.test(String(t).trim());
                 const splitLabel = line => {
                     const lz = labelZone(line);
                     return { lz, outer: lz.filter(item => item.x <= outerX + 8), inner: lz.filter(item => item.x > outerX + 8), hasValue: line.items.length > lz.length };
@@ -3434,19 +3745,13 @@
                     groupHeadCache.set(i, text);
                     return text;
                 };
-                // Dòng có nhãn ngoài cùng + giá trị nhưng KHÔNG phải đầu nhóm (vd. "CSPF  W/W  5.25") => chặn, không cho nhãn nhóm phía bên kia lan sang
-                const isStandalone = j => splitLabel(lines[j]).outer.length > 0 && !groupHeadText(j);
                 const findGroupHead = idx => {
-                    const blocked = { '-1': false, '1': false };
                     for (let d = 1; d <= 4; d++) {
-                        for (const dir of [-1, 1]) {
-                            if (blocked[dir]) continue;
-                            const j = idx + dir * d;
-                            if (j < 0 || j >= lines.length) { blocked[dir] = true; continue; }
-                            if (j === h || Math.abs(lines[j].y - lines[idx].y) > 90) { blocked[dir] = true; continue; }
+                        for (const j of [idx - d, idx + d]) {
+                            if (j < 0 || j >= lines.length || j === h) continue;
+                            if (Math.abs(lines[j].y - lines[idx].y) > 90) continue;
                             const text = groupHeadText(j);
                             if (text) return text;
-                            if (isStandalone(j)) blocked[dir] = true;
                         }
                     }
                     return '';
@@ -4442,6 +4747,7 @@
         function rotateSinglePage(e, pageNum) {
             e.stopPropagation();
             if (!currentPdfDoc) return;
+            if (typeof clearPdfSelection === 'function') clearPdfSelection();
             singlePageRotations[pageNum] = ((singlePageRotations[pageNum] || 0) + 180) % 360;
             const canvas = document.getElementById(`canvas-page-${pageNum}`);
             if (canvas) canvas.dataset.rendered = "false";
@@ -4487,6 +4793,7 @@
                 const container = document.getElementById('pdfScrollContainer'); 
                 container.innerHTML = '';
                 
+                if (typeof clearPdfSelection === 'function') clearPdfSelection();
                 const pjInput = document.getElementById('pageJumpInput'); 
                 if (pjInput) { pjInput.value = ''; pjInput.max = currentPdfDoc.numPages; pjInput.placeholder = '1-' + currentPdfDoc.numPages; }
                 
@@ -4508,7 +4815,6 @@
                         </div>
                         <canvas id="canvas-page-${i}" data-rendered="false"></canvas>
                         <div class="highlight-layer" id="hl-layer-${i}"></div>
-                        <div class="pdf-text-layer" id="tl-layer-${i}"></div>
                     `;
                     fragment.appendChild(w);
                 }
@@ -4576,7 +4882,6 @@
                     liveCanvas.getContext('2d').drawImage(scratchCanvas, 0, 0);
 
                     liveCanvas.dataset.rendered = "true"; 
-                    { const tl = document.getElementById(`tl-layer-${pageNum}`); if (tl) { tl.replaceChildren(); if (pdfSelectMode) buildTextLayer(page, viewport, pageNum).catch(() => {}); } }
                     await drawHighlightsOnPage(page, viewport, pageNum);
                 } catch (err) {
                     if (err?.name !== 'RenderingCancelledException') {
@@ -4593,6 +4898,469 @@
             }
         }
 
+        /* ================= 🔤 OCR TRANG ẢNH (Tesseract.js, chạy ngay trên máy) ================= */
+        const OCR_LIB_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';   // v5: kết quả có sẵn danh sách từ + khung chữ
+        const OCR_PREFIX = 'ocr1|';
+        const OCR_MIN_TEXT = 40;          // trang có ít hơn ngần này ký tự coi như "không có chữ"
+        const ocrMem = new Map();         // đường dẫn file -> { sig, lang, pages: { [số trang]: { w:[[chữ,x0,y0,x1,y1]...], c, rot, t0 } } } | null
+        let ocrLibPromise = null, ocrWorkers = [], ocrWorkersLang = '', ocrRunning = false, ocrStopFlag = false;
+
+        const ocrPathOf = f => f.webkitRelativePath || f.name;
+        function ocrFindFile(path) { return allMasterFiles.find(f => ocrPathOf(f) === path) || null; }
+        function ocrLog(msg) { const el = document.getElementById('ocrLog'); if (!el) return; el.textContent += (el.textContent ? '\n' : '') + msg; el.scrollTop = el.scrollHeight; }
+        function ocrSetStatus(msg, pct) {
+            const st = document.getElementById('ocrStatusLine'); if (st) st.textContent = msg || '';
+            const bar = document.getElementById('ocrBarFill'); if (bar && pct != null) bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
+        }
+        function ocrToast(msg, ms = 6000) {
+            let t = document.getElementById('ocrToast');
+            if (!t) { t = document.createElement('div'); t.id = 'ocrToast'; t.className = 'ocr-toast'; document.body.appendChild(t); }
+            t.textContent = msg; t.style.display = 'block';
+            clearTimeout(t._h); if (ms) t._h = setTimeout(() => { t.style.display = 'none'; }, ms);
+        }
+
+        function loadOcrLib() {
+            if (window.Tesseract) return Promise.resolve();
+            if (ocrLibPromise) return ocrLibPromise;
+            ocrLibPromise = new Promise((resolve, reject) => {
+                const sc = document.createElement('script');
+                sc.src = OCR_LIB_URL;
+                sc.onload = () => window.Tesseract ? resolve() : reject(new Error('Thư viện OCR đã tải nhưng không dùng được.'));
+                sc.onerror = () => { ocrLibPromise = null; reject(new Error('Không tải được thư viện OCR (cdn.jsdelivr.net). Có thể mạng công ty đang chặn; hãy thử mạng khác.')); };
+                document.head.appendChild(sc);
+            });
+            return ocrLibPromise;
+        }
+        async function getOcrWorkers(lang) {
+            await loadOcrLib();
+            if (ocrWorkers.length && ocrWorkersLang === lang) return ocrWorkers;
+            await Promise.all(ocrWorkers.map(w => w.terminate().catch(() => {})));
+            ocrWorkers = [];
+            // Mỗi bộ OCR chiếm 1 luồng CPU: dùng khoảng một nửa số nhân (tối đa 4) để nhanh mà máy vẫn dùng được
+            const n = Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2)));
+            const mk = first => Tesseract.createWorker(lang, 1, {
+                logger: m => { if (first && m && m.status && /loading|initializ/i.test(m.status) && typeof m.progress === 'number') ocrSetStatus(`${m.status} ${Math.round(m.progress * 100)}%`); }
+            });
+            ocrSetStatus('Đang chuẩn bị OCR (lần đầu phải tải dữ liệu ngôn ngữ, có thể mất vài phút)…');
+            ocrWorkers.push(await mk(true));                       // bộ đầu tiên tải và lưu dữ liệu ngôn ngữ vào bộ nhớ đệm
+            if (n > 1) {
+                ocrSetStatus(`Đang khởi tạo thêm ${n - 1} bộ OCR để chạy song song…`);
+                const rest = await Promise.all(Array.from({ length: n - 1 }, () => mk(false)));
+                ocrWorkers.push(...rest);
+            }
+            ocrWorkersLang = lang;
+            return ocrWorkers;
+        }
+
+        // ----- lưu / nạp kết quả OCR -----
+        async function ocrLoadEntry(file) {
+            const path = ocrPathOf(file);
+            if (ocrMem.has(path)) return ocrMem.get(path);
+            let entry = null;
+            try { const v = await getCachedPdfText(OCR_PREFIX + path); if (v && v.sig === fileSig(file) && v.pages) entry = v; } catch (e) {}
+            ocrMem.set(path, entry);
+            return entry;
+        }
+        async function ocrPersistFile(file) {
+            const entry = ocrMem.get(ocrPathOf(file));
+            const items = [];
+            if (entry) items.push({ key: OCR_PREFIX + ocrPathOf(file), value: entry });
+            const idx = pdfIndex.get(fileIdxKey(file));
+            if (idx) items.push({ key: fileIdxKey(file), value: { sig: idx.sig, pages: idx.pages.map(p => ({ pageNum: p.pageNum, fullText: p.fullText })) } });
+            await putIndexEntries(items);
+        }
+
+        // ----- chuyển từ OCR (toạ độ chuẩn hoá 0..1 của trang theo hướng hiển thị gốc) về "chữ" có toạ độ PDF để dùng chung bộ khoanh sẵn có -----
+        async function getOcrItems(page, pageNum) {
+            if (!currentPdfKey) return [];
+            const file = ocrFindFile(currentPdfKey);
+            if (!file) return [];
+            const entry = await ocrLoadEntry(file);
+            const rec = entry && entry.pages && entry.pages[pageNum];
+            if (!rec || !rec.w || !rec.w.length) return [];
+            const nv = page.getViewport({ scale: 1, rotation: page.rotate || 0 });
+            const out = [];
+            for (const [text, x0, y0, x1, y1] of rec.w) {
+                const L = x0 * nv.width, R = x1 * nv.width, T = y0 * nv.height, B = y1 * nv.height;
+                const p0 = nv.convertToPdfPoint(L, B), p1 = nv.convertToPdfPoint(R, B), p2 = nv.convertToPdfPoint(L, T);
+                const ux = p1[0] - p0[0], uy = p1[1] - p0[1], vx = p2[0] - p0[0], vy = p2[1] - p0[1];
+                const wl = Math.hypot(ux, uy) || 1, h = Math.hypot(vx, vy) || 1;
+                out.push({ str: text, width: wl, height: h, hasEOL: false, ocr: true, transform: [ux / wl * h, uy / wl * h, vx, vy, p0[0], p0[1]] });
+            }
+            return out;
+        }
+
+        // ----- tạo ảnh để OCR -----
+        async function ocrRenderCanvas(page, targetPx = 2200) {
+            const rot = page.rotate || 0;
+            const base = page.getViewport({ scale: 1, rotation: rot });
+            const scale = Math.max(1, Math.min(4, targetPx / Math.max(base.width, base.height)));
+            const vp = page.getViewport({ scale, rotation: rot });
+            const c = document.createElement('canvas');
+            c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+            await page.render({ canvasContext: ctx, viewport: vp }).promise;
+            return c;
+        }
+        function ocrRotateCanvas(src, deg) {
+            const W = src.width, H = src.height;
+            const c = document.createElement('canvas');
+            const ctx = c.getContext('2d');
+            if (deg === 180) { c.width = W; c.height = H; ctx.translate(W, H); ctx.rotate(Math.PI); }
+            else if (deg === 90) { c.width = H; c.height = W; ctx.translate(H, 0); ctx.rotate(Math.PI / 2); }
+            else { c.width = H; c.height = W; ctx.translate(0, W); ctx.rotate(-Math.PI / 2); }
+            ctx.drawImage(src, 0, 0);
+            return c;
+        }
+        // Đưa khung chữ nhận dạng trên ảnh đã xoay về khung của ảnh gốc (W x H)
+        function ocrUnrotateBox(b, deg, W, H) {
+            if (deg === 180) return { x0: W - b.x1, x1: W - b.x0, y0: H - b.y1, y1: H - b.y0 };
+            if (deg === 90) return { x0: b.y0, x1: b.y1, y0: H - b.x1, y1: H - b.x0 };
+            if (deg === 270) return { x0: W - b.y1, x1: W - b.y0, y0: b.x0, y1: b.x1 };
+            return b;
+        }
+        // Trang có "mực" (khác trắng) hay không: dùng để quyết định có đáng thử xoay ảnh khi OCR hướng gốc ra 0 từ
+        function ocrCanvasHasInk(c) {
+            try {
+                const sw = 160, sh = Math.max(1, Math.round(160 * c.height / c.width));
+                const s = document.createElement('canvas'); s.width = sw; s.height = sh;
+                const sctx = s.getContext('2d', { willReadFrequently: true });
+                sctx.drawImage(c, 0, 0, sw, sh);
+                const d = sctx.getImageData(0, 0, sw, sh).data;
+                let dark = 0;
+                for (let i = 0; i < d.length; i += 4) if ((d[i] + d[i + 1] + d[i + 2]) / 3 < 235) dark++;
+                return dark / (sw * sh) > 0.003;
+            } catch (e) { return true; }
+        }
+        function ocrExtractWords(data) {
+            if (Array.isArray(data.words) && data.words.length) return data.words;
+            const words = [];
+            (data.blocks || []).forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(l => (l.words || []).forEach(w => words.push(w)))));
+            return words;
+        }
+        // Gộp kết quả OCR của nhiều hướng ảnh cho CÙNG 1 trang (trang lẫn chữ ngang + bảng/ghi chú xoay 90°).
+        // runs: [{ deg, words:[{text, confidence, bbox}] }] (khung chữ nằm trong ảnh đã xoay, thứ tự đọc của tesseract)
+        // Trả về mảng từ đã quy về khung ảnh gốc: [{ text, conf, deg, run, idx, x0, y0, x1, y1 }]
+        function ocrMergeOrientations(runs, W, H, minConf = 50) {
+            const cand = [];
+            runs.forEach((r, ri) => (r.words || []).forEach((w, idx) => {
+                const text = String(w.text || '').trim();
+                const conf = w.confidence == null ? 0 : w.confidence;
+                if (!text || conf < minConf || !w.bbox) return;
+                if (!/[0-9A-Za-zÀ-ỹ]/.test(text)) return;                       // chỉ toàn dấu/ký tự lạ => bỏ
+                const bw = w.bbox.x1 - w.bbox.x0, bh = w.bbox.y1 - w.bbox.y0;
+                if (text.length >= 4 && bw < bh * 0.9) return;                    // từ dài mà khung đứng => đọc sai hướng
+                if (text.length <= 1 && conf < 80) return;                        // ký tự lẻ độ tin cậy thấp => nhiễu
+                const b = ocrUnrotateBox(w.bbox, r.deg, W, H);
+                cand.push({ text, conf, deg: r.deg, run: ri, idx, x0: Math.max(0, b.x0), y0: Math.max(0, b.y0), x1: Math.min(W, b.x1), y1: Math.min(H, b.y1) });
+            }));
+            // Từ nào tin cậy hơn thì được giữ trước; từ trùng vị trí với từ đã giữ (>30% diện tích nhỏ hơn) bị loại
+            cand.sort((a, b) => b.conf - a.conf);
+            const kept = [];
+            for (const c of cand) {
+                const ca = Math.max(1, (c.x1 - c.x0) * (c.y1 - c.y0));
+                let clash = false;
+                for (const k of kept) {
+                    const ix = Math.min(c.x1, k.x1) - Math.max(c.x0, k.x0), iy = Math.min(c.y1, k.y1) - Math.max(c.y0, k.y0);
+                    if (ix <= 0 || iy <= 0) continue;
+                    const ka = Math.max(1, (k.x1 - k.x0) * (k.y1 - k.y0));
+                    if (ix * iy / Math.min(ca, ka) > 0.3) { clash = true; break; }
+                }
+                if (!clash) kept.push(c);
+            }
+            // Hướng "chính" = hướng có nhiều từ nhất. Từ thuộc hướng phụ phải đáng tin hơn (tránh nhiễu từ đường kẻ bảng, hoa văn...)
+            const cnt = new Map(); kept.forEach(k => cnt.set(k.run, (cnt.get(k.run) || 0) + 1));
+            let mainRun = -1, mainN = -1; cnt.forEach((n, r) => { if (n > mainN) { mainN = n; mainRun = r; } });
+            for (let i = kept.length - 1; i >= 0; i--) {
+                const k = kept[i];
+                if (k.run === mainRun) continue;
+                const ok = k.conf >= 70 && (k.text.length >= 3 || (k.conf >= 85 && /\d/.test(k.text)));
+                if (!ok) kept.splice(i, 1);
+            }
+            // Giữ thứ tự đọc: nhóm theo lượt OCR (lượt nhiều từ nhất trước), trong lượt theo thứ tự gốc => cụm "wire size" vẫn liền nhau
+            const perRun = new Map(); kept.forEach(k => perRun.set(k.run, (perRun.get(k.run) || 0) + 1));
+            kept.sort((a, b) => (perRun.get(b.run) - perRun.get(a.run)) || (a.run - b.run) || (a.idx - b.idx));
+            return kept;
+        }
+
+        async function ocrRecognizePage(worker, page, allowRotate) {
+            const canvas = await ocrRenderCanvas(page);
+            const W = canvas.width, H = canvas.height;
+            const run = async deg => {
+                const img = deg ? ocrRotateCanvas(canvas, deg) : canvas;
+                const res = await worker.recognize(img, {}, { blocks: true });
+                const words = ocrExtractWords(res.data).filter(w => w && w.text && w.text.trim() && w.bbox && (w.confidence == null || w.confidence >= 30));
+                const conf = words.length ? words.reduce((s, w) => s + (w.confidence || 0), 0) / words.length : 0;
+                return { deg, words, conf, score: words.length * conf };
+            };
+            const q = v => Math.round(v * 10000) / 10000;
+
+            if (!ocrCanvasHasInk(canvas)) { canvas.width = canvas.height = 0; return { w: [], c: 0, rot: 0 }; }   // trang trắng: khỏi OCR
+
+            const runs = [await run(0)];
+            // Trang "sạch" = đa số từ đọc được với độ tin cậy cao => chắc chắn đúng hướng, khỏi thử xoay (tiết kiệm 2-3 lượt OCR)
+            const good0 = runs[0].words.filter(w => (w.confidence || 0) >= 70 && String(w.text).trim().length >= 2).length;
+            const clean0 = runs[0].words.length >= 8 && good0 / runs[0].words.length >= 0.6;
+            // Trang sạch (chữ ngang, độ tin cậy cao) chỉ cần 1 lượt. Trang kém/trống thì thử thêm các hướng khác: để bắt cả trang scan ngược
+            // lẫn trang LẪN chữ ngang với bảng/ghi chú xoay 90° (hướng gốc vẫn đọc ra nhiều "từ rác" nên độ tin cậy không đủ thấp để tự nhận ra).
+            if (allowRotate && !clean0 && (runs[0].words.length < 8 || runs[0].conf < 80)) {
+                for (const d of [90, 270]) runs.push(await run(d));
+                if (!runs.some(r => r.words.length >= 8 && r.conf >= 70)) runs.push(await run(180));   // chỉ khi chưa hướng nào đọc tốt
+            }
+
+            if (runs.length > 1) {
+                const merged = ocrMergeOrientations(runs, W, H);
+                const perDeg = {}; merged.forEach(k => { perDeg[k.deg] = (perDeg[k.deg] || 0) + 1; });
+                const strong = Object.keys(perDeg).map(Number).filter(d => perDeg[d] >= 6).sort((a, b) => a - b);
+                if (strong.length >= 2) {      // có ít nhất 2 hướng chữ thật sự => trang lẫn hướng, dùng bản gộp
+                    const w = merged.map(k => [k.text, q(k.x0 / W), q(k.y0 / H), q(k.x1 / W), q(k.y1 / H)]);
+                    const conf = Math.round(merged.reduce((s, k) => s + k.conf, 0) / merged.length);
+                    return { w, c: conf, rot: merged[0].deg, mix: strong };
+                }
+            }
+
+            // Chỉ 1 hướng chữ: chọn hướng tốt nhất như trước
+            let best = runs[0];
+            for (const r of runs.slice(1)) if (r.score > best.score * 1.3) best = r;
+            const w = best.words.map(x => {
+                const b = ocrUnrotateBox(x.bbox, best.deg, W, H);
+                return [x.text.trim(), q(Math.max(0, b.x0) / W), q(Math.max(0, b.y0) / H), q(Math.min(W, b.x1) / W), q(Math.min(H, b.y1) / H)];
+            });
+            return { w, c: Math.round(best.conf), rot: best.deg };
+        }
+
+        // Ghi kết quả OCR của 1 trang vào chỉ mục tìm kiếm + bộ nhớ khoanh
+        async function ocrCommitPage(file, pageNum, rec) {
+            const sig = fileSig(file), path = ocrPathOf(file);
+            let entry = ocrMem.has(path) ? ocrMem.get(path) : await ocrLoadEntry(file);
+            if (!entry) {
+                entry = ocrMem.get(path);                           // có thể bộ OCR khác vừa tạo trong lúc chờ => dùng chung, không tạo bản thứ hai (mất trang)
+                if (!entry) { entry = { sig, lang: ocrWorkersLang, pages: {} }; ocrMem.set(path, entry); }
+            }
+            const idx = pdfIndex.get(fileIdxKey(file));
+            const ip = idx && idx.sig === sig ? idx.pages.find(p => p && p.pageNum === pageNum) : null;
+            const prev = entry.pages[pageNum];
+            pdfOcrVersion++; pdfWordCache.clear();      // danh sách chữ để chọn/copy phải dựng lại (có thêm chữ OCR)
+            rec.t0 = prev && prev.t0 != null ? prev.t0 : (ip ? ip.fullText : '');     // chữ gốc của trang (nếu có) giữ lại, không bị nhân đôi khi OCR lại
+            entry.pages[pageNum] = rec;
+            if (ip) {
+                const ocrText = rec.w.map(x => x[0]).join(' ');
+                const merged = ((rec.t0 || '') + ' ' + ocrText).normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' ').trim();
+                ip.fullText = merged; ip.lowerText = merged.toLowerCase();
+            }
+        }
+
+        // Ghép lại chữ OCR đã lưu vào các trang vừa được quét lại (chữ gốc mới + chữ OCR), giống lúc OCR xong
+        async function ocrReapplyToPages(file, pages) {
+            const entry = await ocrLoadEntry(file);
+            if (!entry || !entry.pages) return;
+            for (const [pn, rec] of Object.entries(entry.pages)) {
+                const p = pages[Number(pn) - 1];
+                if (!p || !rec || !rec.w || !rec.w.length) continue;
+                rec.t0 = p.fullText || '';
+                const merged = (rec.t0 + ' ' + rec.w.map(x => x[0]).join(' ')).normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' ').trim();
+                p.fullText = merged; p.lowerText = merged.toLowerCase();
+            }
+        }
+
+        function ocrCountWords(rec) { return rec && rec.w ? rec.w.length : 0; }
+
+        // ----- OCR hàng loạt -----
+        async function ocrFileBatch(file, { includeImagePages, onPage }) {
+            if (!hasIndex(file)) await ensureFileIndexed(file, {});
+            const idx = pdfIndex.get(fileIdxKey(file));
+            if (!idx) return { done: 0, words: 0 };
+            const entry = await ocrLoadEntry(file);
+            const done = new Set(Object.keys((entry && entry.pages) || {}).map(Number));
+            let cand = idx.pages.filter(p => p && !done.has(p.pageNum) && (p.fullText || '').trim().length < OCR_MIN_TEXT).map(p => p.pageNum);
+            const buf = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buf), ...PDF_JS_CONFIG }).promise;
+            try {
+                if (includeImagePages) {
+                    const extra = [];
+                    for (const p of idx.pages) {
+                        if (!p || done.has(p.pageNum) || cand.includes(p.pageNum) || ocrStopFlag) continue;
+                        const pg = await pdf.getPage(p.pageNum);
+                        if (await ocrImageCoverage(pg) >= 0.3 && (p.fullText || '').length < 6000) extra.push(p.pageNum);
+                        try { pg.cleanup(); } catch (e) {}
+                    }
+                    cand = cand.concat(extra).sort((a, b) => a - b);
+                }
+                const workers = await getOcrWorkers(ocrWorkersLang || (document.getElementById('ocrLang') || {}).value || 'vie+eng');
+                let wordsTotal = 0, count = 0, next = 0, lastPersist = Date.now();
+                const allowRotate = (document.getElementById('ocrRotate') || { checked: true }).checked;
+                // Hàng đợi: bộ OCR nào xong trước thì lấy trang kế tiếp ngay (trước đây cả nhóm phải đợi trang chậm nhất)
+                await Promise.all(workers.map(async w => {
+                    while (!ocrStopFlag) {
+                        const pn = cand[next++];
+                        if (pn == null) break;
+                        const pg = await pdf.getPage(pn);
+                        const rec = await ocrRecognizePage(w, pg, allowRotate);
+                        try { pg.cleanup(); } catch (e) {}
+                        await ocrCommitPage(file, pn, rec);
+                        wordsTotal += rec.w.length; count++;
+                        if (onPage) onPage(pn, rec, count, cand.length);
+                        if (Date.now() - lastPersist > 15000) { lastPersist = Date.now(); await ocrPersistFile(file); }
+                    }
+                }));
+                await ocrPersistFile(file);
+                return { done: count, words: wordsTotal, total: cand.length };
+            } finally { try { pdf.destroy(); } catch (e) {} }
+        }
+        // OCR đúng 1 trang đang xem, kể cả trang có 1 phần là hình ảnh và 1 phần là chữ thật (bảng chèn dạng ảnh)
+        async function ocrCurrentPageNow(pageNum) {
+            if (ocrRunning) { showCopyToast('OCR đang chạy ở nơi khác, hãy chờ xong rồi thử lại.', false); return; }
+            const file = currentPdfKey ? ocrFindFile(currentPdfKey) : null;
+            if (!file || !currentPdfDoc) { showCopyToast('Chưa mở file PDF nào để OCR.', false); return; }
+            pageNum = pageNum || getVisiblePdfPage();
+            ocrRunning = true; ocrStopFlag = false;
+            try {
+                const lang = (document.getElementById('ocrLang') || {}).value || 'vie+eng';
+                ocrToast(`⏳ Đang OCR trang ${pageNum}… (lần đầu phải tải dữ liệu ngôn ngữ nên có thể mất vài phút)`, 180000);
+                ocrSetStatus(`Đang OCR trang ${pageNum}…`, 10);
+                const workers = await getOcrWorkers(lang);
+                const page = await currentPdfDoc.getPage(pageNum);
+                const allowRotate = (document.getElementById('ocrRotate') || { checked: true }).checked;
+                const rec = await ocrRecognizePage(workers[0], page, allowRotate);
+                if (!hasIndex(file)) { try { await ensureFileIndexed(file, {}); } catch (e) {} }
+                await ocrCommitPage(file, pageNum, rec);
+                await ocrPersistFile(file);
+                try { await refreshPageHighlights(pageNum); } catch (e) {}
+                ocrSetStatus(rec.w.length ? '✅ Xong.' : '⚠️ Không đọc được chữ nào.', 100);
+                ocrLog(`📄 Trang ${pageNum}: ${rec.w.length} từ, độ tin cậy ~${rec.c}%${rec.mix ? `, lẫn nhiều hướng ${rec.mix.join('°/')}°` : (rec.rot ? `, xoay ${rec.rot}°` : '')}. Nhấp đúp vào chữ để chọn và copy.`);
+                ocrToast(rec.w.length
+                    ? `✅ Đã OCR trang ${pageNum}: ${rec.w.length} từ. Nhấp đúp vào chữ để chọn và copy.`
+                    : `⚠️ OCR trang ${pageNum} không đọc được chữ nào (trang trắng hoặc ảnh quá mờ).`, 8000);
+            } catch (e) {
+                ocrToast('❌ OCR lỗi: ' + (e && e.message ? e.message : e), 10000);
+                ocrSetStatus('❌ Lỗi: ' + (e && e.message ? e.message : e));
+                ocrLog('❌ ' + (e && e.message ? e.message : e));
+            } finally { ocrRunning = false; }
+        }
+
+        // Tỉ lệ diện tích trang bị ảnh phủ (theo lệnh vẽ ảnh và ma trận biến đổi)
+        async function ocrImageCoverage(page) {
+            try {
+                const ops = await page.getOperatorList();
+                const O = pdfjsLib.OPS;
+                const imgOps = new Set([O.paintImageXObject, O.paintInlineImageXObject, O.paintImageMaskXObject, O.paintImageXObjectRepeat, O.paintJpegXObject].filter(v => v != null));
+                const view = page.view, pageArea = Math.abs((view[2] - view[0]) * (view[3] - view[1])) || 1;
+                const mul = (m, n) => [m[0] * n[0] + m[2] * n[1], m[1] * n[0] + m[3] * n[1], m[0] * n[2] + m[2] * n[3], m[1] * n[2] + m[3] * n[3], m[0] * n[4] + m[2] * n[5] + m[4], m[1] * n[4] + m[3] * n[5] + m[5]];
+                let ctm = [1, 0, 0, 1, 0, 0]; const stack = []; let area = 0;
+                for (let i = 0; i < ops.fnArray.length; i++) {
+                    const fn = ops.fnArray[i], a = ops.argsArray[i];
+                    if (fn === O.save) stack.push(ctm.slice());
+                    else if (fn === O.restore) ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+                    else if (fn === O.transform) ctm = mul(ctm, a);
+                    else if (imgOps.has(fn)) area += Math.abs(ctm[0] * ctm[3] - ctm[1] * ctm[2]);
+                }
+                return Math.min(1, area / pageArea);
+            } catch (e) { return 0; }
+        }
+
+        // ----- hộp thoại -----
+        function openOcrPanel() {
+            document.getElementById('ocrModal').style.display = 'flex';
+            ocrSetStatus(currentPdfKey ? `File đang mở: ${currentPdfKey}` : 'Chưa mở file PDF nào (chọn "Thư mục đang chọn" hoặc mở 1 file trước).', 0);
+        }
+        function closeOcrPanel() { document.getElementById('ocrModal').style.display = 'none'; }
+        function ocrStop() { ocrStopFlag = true; ocrSetStatus('Đang dừng sau trang hiện tại…'); }
+
+        // Liệt kê file có trang không có chữ (dựa vào chỉ mục sẵn có, rất nhanh) để bạn tự chọn file cần OCR
+        async function ocrScanCandidates() {
+            const files = (filteredPdfFiles.length ? filteredPdfFiles : allMasterFiles).filter(f => hasIndex(f));
+            const rows = [];
+            for (const f of files) {
+                const idx = pdfIndex.get(fileIdxKey(f));
+                const entry = await ocrLoadEntry(f);
+                const done = new Set(Object.keys((entry && entry.pages) || {}).map(Number));
+                const blank = idx.pages.filter(p => p && !done.has(p.pageNum) && (p.fullText || '').trim().length < OCR_MIN_TEXT).length;
+                if (blank > 0) rows.push({ f, blank, total: idx.pages.length, done: done.size });
+            }
+            rows.sort((a, b) => (b.blank / b.total) - (a.blank / a.total) || b.blank - a.blank);
+            const box = document.getElementById('ocrList');
+            if (!rows.length) { box.innerHTML = `<div style="margin-top:8px;color:#8fd19e;">Không có file nào có trang không-chữ trong ${files.length} file đã lập chỉ mục. (File chưa lập chỉ mục không được tính.)</div>`; return; }
+            const esc = v => String(v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+            const sec = Math.round(rows.reduce((s, r) => s + r.blank, 0) * 4 / Math.max(1, Math.min(4, Math.floor((navigator.hardwareConcurrency || 4) / 2))));
+            box.innerHTML = `<div style="margin-top:8px;color:#aaa;">${rows.length} file có trang không-chữ, tổng ${rows.reduce((s, r) => s + r.blank, 0)} trang (ước tính ~${Math.round(sec / 60)} phút nếu OCR hết, khoảng 4 giây/trang cho mỗi bộ OCR; máy chạy song song nhiều bộ nên thực tế nhanh hơn). Trang trống/bìa cũng bị tính; hãy ưu tiên các file có tỉ lệ cao.</div>
+                <table><tr><th>File</th><th>Trang không chữ</th><th></th></tr>${rows.slice(0, 150).map((r, i) => `<tr>
+                    <td title="${esc(ocrPathOf(r.f))}">${esc(r.f.name)}</td><td>${r.blank}/${r.total}${r.done ? ` (đã OCR ${r.done})` : ''}</td>
+                    <td><button class="ocr-btn sec" style="padding:2px 8px;" onclick="ocrOpenFile(${i})">Mở</button> <button class="ocr-btn" style="padding:2px 8px;" onclick="ocrRunOneFile(${i})">OCR file này</button></td></tr>`).join('')}</table>`;
+            window._ocrRows = rows;
+        }
+        async function ocrOpenFile(i) {
+            const r = (window._ocrRows || [])[i]; if (!r) return;
+            closeOcrPanel();
+            await jumpToTargetPdf(ocrPathOf(r.f), 1);
+        }
+        async function ocrRunOneFile(i) {
+            const r = (window._ocrRows || [])[i]; if (!r) return;
+            await ocrRunFiles([r.f], false);
+        }
+        async function ocrStartFromPanel() {
+            const scope = document.getElementById('ocrScope').value;
+            const includeImg = document.getElementById('ocrImgMode').checked;
+            if (scope === 'page') {
+                if (!currentPdfDoc) { alert('Chưa mở file PDF nào. Hãy mở file và cuộn tới trang cần OCR rồi bấm lại.'); return; }
+                document.getElementById('ocrLog').textContent = '';
+                await ocrCurrentPageNow();
+                return;
+            }
+            if (scope === 'file') {
+                const f = currentPdfKey ? ocrFindFile(currentPdfKey) : null;
+                if (!f) { alert('Chưa mở file PDF nào. Hãy mở file cần OCR rồi bấm lại, hoặc chọn "Thư mục đang chọn".'); return; }
+                const res = await ocrRunFiles([f], includeImg);
+                if (res && res.pages === 0 && !includeImg && !ocrStopFlag) {
+                    ocrLog('↻ File này không có trang nào thiếu chữ. Đang thử tìm các trang có ảnh lớn kèm chữ (bảng chèn dạng ảnh)…');
+                    const r2 = await ocrRunFiles([f], true, true);
+                    if (r2 && r2.pages === 0) ocrLog('ℹ️ Vẫn không có trang nào đủ điều kiện. Hãy mở đúng trang cần OCR rồi chọn phạm vi "Trang đang xem".');
+                }
+            } else {
+                const files = (filteredPdfFiles.length ? filteredPdfFiles : allMasterFiles).filter(f => hasIndex(f));
+                if (!files.length) { alert('Chưa có file nào được lập chỉ mục.'); return; }
+                if (!confirm(`OCR tất cả các trang không có chữ trong ${files.length} file của thư mục đang chọn? Việc này có thể rất lâu (khoảng 4 giây/trang). Bạn nên bấm "Tìm file có trang không có chữ" trước để chọn từng file.`)) return;
+                await ocrRunFiles(files, false);
+            }
+        }
+        async function ocrRunFiles(files, includeImagePages, keepLog) {
+            if (ocrRunning) { alert('OCR đang chạy.'); return; }
+            ocrRunning = true; ocrStopFlag = false;
+            const startBtn = document.getElementById('ocrStartBtn'), stopBtn = document.getElementById('ocrStopBtn');
+            startBtn.disabled = true; stopBtn.disabled = false;
+            if (!keepLog) document.getElementById('ocrLog').textContent = '';
+            let totalPages = 0, totalWords = 0;
+            try {
+                const lang = document.getElementById('ocrLang').value;
+                await getOcrWorkers(lang);
+                for (let fi = 0; fi < files.length && !ocrStopFlag; fi++) {
+                    const f = files[fi];
+                    ocrLog(`📄 [${fi + 1}/${files.length}] ${f.name}`);
+                    const r = await ocrFileBatch(f, {
+                        includeImagePages,
+                        onPage: (pn, rec, k, total) => {
+                            ocrSetStatus(`${f.name}: trang ${pn} (${k}/${total})`, ((fi + k / Math.max(1, total)) / files.length) * 100);
+                            ocrLog(`   trang ${pn}: ${rec.w.length} từ, độ tin cậy ~${rec.c}%${rec.mix ? `, lẫn nhiều hướng ${rec.mix.join('°/')}°` : (rec.rot ? `, xoay ${rec.rot}°` : '')}`);
+                        }
+                    });
+                    totalPages += r.done; totalWords += r.words;
+                    if (currentPdfKey === ocrPathOf(f) && typeof refreshAllPages === 'function') refreshAllPages();
+                }
+                ocrSetStatus(ocrStopFlag ? '⏹ Đã dừng.' : '✅ Xong.', ocrStopFlag ? undefined : 100);
+                ocrLog(`Tổng: ${totalPages} trang đã OCR, ${totalWords} từ. Giờ bạn tìm kiếm bình thường, các trang này đã vào chỉ mục.`);
+                if (totalPages === 0 && !ocrStopFlag) ocrLog('ℹ️ Không có trang nào đủ điều kiện (trang đã có chữ gốc thì mặc định không OCR). Nếu bảng là hình ảnh nằm trên trang có chữ, hãy chọn phạm vi "Trang đang xem" hoặc tick "Cả trang có ảnh lớn kèm chữ".');
+                updateStatusUI();
+                return { pages: totalPages, words: totalWords };
+            } catch (e) {
+                console.error(e);
+                ocrSetStatus('❌ Lỗi: ' + (e.message || e));
+                ocrLog('❌ ' + (e.message || e));
+                return null;
+            } finally {
+                ocrRunning = false; startBtn.disabled = false; stopBtn.disabled = true;
+            }
+        }
+
         /* ================= VẼ HIGHLIGHT: BẤT CHẤP LAYER ẨN / KHOẢNG TRẮNG ================= */
         async function drawHighlightsOnPage(page, viewport, pageNum) {
             const hlLayer = document.getElementById(`hl-layer-${pageNum}`); 
@@ -4605,7 +5373,9 @@
             const occurrenceCounters = new Map();
             const sortedHighlightTerms = [...activeHighlightTerms].sort((a, b) => b.length - a.length);
 
-            const items = textContent.items || [];
+            let items = textContent.items || [];
+            // Trang có kết quả OCR: thêm các từ nhận dạng được (đã quy về toạ độ PDF) để khoanh đúng chỗ như chữ thường
+            try { const ocrItems = await getOcrItems(page, pageNum); if (ocrItems.length) items = items.concat(ocrItems); } catch (e) { console.warn('OCR items', e); }
             if (!items.length) { if (hlLayer._drawId === myDrawId) hlLayer.innerHTML = ''; return; }
 
             let fullPageStr = '';
@@ -4615,10 +5385,11 @@
                 const it = items[i];
                 let s = it.str || '';
                 if (!s) continue;
+                const cl = collapseLetterSpacingMap(s);   // "M F A" -> "MFA" (kèm bản đồ vị trí về chuỗi gốc)
                 const start = fullPageStr.length;
-                fullPageStr += s + ' '; // Nối thêm 1 dấu cách để chống dính chữ
+                fullPageStr += cl.str + ' '; // Nối thêm 1 dấu cách để chống dính chữ
                 const end = fullPageStr.length - 1; 
-                itemRanges.push({ item: it, start, end });
+                itemRanges.push({ item: it, start, end, map: cl.map });
             }
             const fullLower = fullPageStr.toLowerCase();
             const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -4672,8 +5443,12 @@
 
                         if (ovStart < ovEnd) {
                             const it = r.item;
-                            const subStart = ovStart - r.start;
-                            const subLen = ovEnd - ovStart;
+                            let subStart = ovStart - r.start;
+                            let subLen = ovEnd - ovStart;
+                            if (r.map) {   // chữ đã gộp: quy về vị trí ký tự trong chuỗi gốc để ô khoanh rơi đúng chỗ
+                                const oS = r.map[subStart], oE = r.map[Math.min(r.map.length - 1, subStart + subLen - 1)] + 1;
+                                subStart = oS; subLen = Math.max(1, oE - oS);
+                            }
 
                             const t = pdfjsLib.Util.transform(viewport.transform, it.transform);
                             const fontW = Math.hypot(t[0], t[1]);
@@ -4794,6 +5569,7 @@
         let zoomRenderTimer = null;
         function zoomPdfAt(delta, mx, my) {
             if (!currentPdfDoc) return;
+            if (typeof clearPdfSelection === 'function') clearPdfSelection();
             const c = document.getElementById('pdfScrollContainer');
             const crect = c.getBoundingClientRect();
 
@@ -4887,6 +5663,7 @@
         }
 
         function refreshAllPages() {
+            if (typeof clearPdfSelection === 'function') clearPdfSelection();
             renderEpoch++;
             for (let key in renderTasks) { 
                 try { renderTasks[key].cancel(); } catch(e){} 
@@ -4896,7 +5673,6 @@
             for (let i = 1; i <= currentPdfDoc.numPages; i++) {
                 const c = document.getElementById(`canvas-page-${i}`); 
                 if (c) c.dataset.rendered = "false";
-                const tlOld = document.getElementById(`tl-layer-${i}`); if (tlOld) tlOld.replaceChildren();
             }
             renderVisiblePages();
         }
@@ -4949,217 +5725,15 @@
             document.getElementById('officeZoomLevelText').textContent = `${Math.round(officeScale * 100)}%`;
         }
 
-        /* ================= CHẾ ĐỘ CHỌN CHỮ TRONG PDF (nháy đúp để bật/tắt, kéo xuống mép thì trang tự cuộn) ================= */
-        let pdfSelectMode = false;
-
-        async function buildTextLayer(page, viewport, pageNum) {
-            const layer = document.getElementById(`tl-layer-${pageNum}`);
-            if (!layer) return;
-            const token = (layer._tok = (layer._tok || 0) + 1);
-            const tc = await page.getTextContent({ normalizeWhitespace: true });
-            if (layer._tok !== token) return;
-
-            // 1) Mỗi mục chữ của PDF -> 1 span đặt đúng vị trí / cỡ chữ
-            const made = [];
-            for (const item of (tc.items || [])) {
-                if (!item.str || !item.str.trim()) continue;
-                const tx = pdfjsLib.Util.transform(viewport.transform, item.transform);
-                const fh = Math.hypot(tx[2], tx[3]);
-                if (!fh || !Number.isFinite(fh)) continue;
-                const angle = Math.atan2(tx[1], tx[0]);
-                const span = document.createElement('span');
-                span.textContent = item.str;
-                span.style.left = (tx[4] + fh * Math.sin(angle)) + 'px';
-                span.style.top = (tx[5] - fh * Math.cos(angle)) + 'px';
-                span.style.fontSize = fh + 'px';
-                made.push({ span, angle, fh, bx: tx[4], by: tx[5], target: (item.width || 0) * viewport.scale });
-            }
-            if (!made.length) { layer.replaceChildren(); return; }
-
-            // 2) SẮP LẠI THỨ TỰ THEO VỊ TRÍ NHÌN THẤY (dòng trên -> dưới, trong dòng trái -> phải).
-            //    Thứ tự gốc của PDF thường đi theo từng cột/nhóm nên bôi đen sẽ nhảy sang ô khác.
-            const bucket = new Map();
-            made.forEach(m => { const k = Math.round(m.angle * 20) / 20; bucket.set(k, (bucket.get(k) || 0) + 1); });
-            const domAngle = [...bucket.entries()].sort((x, y) => y[1] - x[1])[0][0];
-            const cs = Math.cos(domAngle), sn = Math.sin(domAngle);
-            const main = [], other = [];
-            made.forEach(m => {
-                if (Math.abs(Math.round(m.angle * 20) / 20 - domAngle) > 0.001) { other.push(m); return; }
-                m.u = m.bx * cs + m.by * sn;          // dọc theo dòng chữ
-                m.v = -m.bx * sn + m.by * cs;         // vuông góc (thứ tự dòng)
-                main.push(m);
-            });
-            main.sort((a, b) => a.v - b.v);
-            const lines = [];
-            main.forEach(m => {
-                const last = lines[lines.length - 1];
-                if (last && Math.abs(m.v - last.v) <= Math.max(2, Math.min(m.fh, last.fh) * 0.55)) last.items.push(m);
-                else lines.push({ v: m.v, fh: m.fh, items: [m] });
-            });
-
-            const frag = document.createDocumentFragment();
-            const sep = (text, ref) => {
-                const e = document.createElement('span');
-                e.textContent = text;
-                e.style.left = ref.span.style.left; e.style.top = ref.span.style.top; e.style.fontSize = '1px';
-                return e;
-            };
-            lines.forEach(line => {
-                line.items.sort((a, b) => a.u - b.u);
-                let prev = null;
-                line.items.forEach(m => {
-                    if (prev) {
-                        const gap = m.u - (prev.u + prev.target);
-                        // Cách xa = sang ô khác (Tab, dán vào Excel sẽ rơi vào cột kế bên); cách gần = dấu cách
-                        if (gap > prev.fh * 0.9) frag.appendChild(sep('\t', m));
-                        else if (gap > prev.fh * 0.12) frag.appendChild(sep(' ', m));
-                    }
-                    frag.appendChild(m.span);
-                    prev = m;
-                });
-                frag.appendChild(document.createElement('br'));
-            });
-            other.forEach(m => frag.appendChild(m.span));
-            const eoc = document.createElement('div');
-            eoc.className = 'endOfContent';
-            frag.appendChild(eoc);
-            layer._eoc = eoc;
-            layer.replaceChildren(frag);
-            if (document.querySelector('.pdf-text-layer.selecting')) layer.classList.add('selecting');
-
-            // 3) Khớp bề rộng từng span với bề rộng chữ thật (đo trước, ghi sau để không tính lại bố cục liên tục)
-            const widths = made.map(m => m.span.offsetWidth);
-            made.forEach((m, i) => {
-                const sx = (widths[i] > 0 && m.target > 0) ? m.target / widths[i] : 1;
-                m.span.style.transform = `rotate(${m.angle}rad) scaleX(${sx})`;
-            });
-        }
-
-        async function buildTextLayerForPageNum(i) {
-            const doc = currentPdfDoc;
-            if (!doc) return;
-            const page = await doc.getPage(i);
-            const rot = ((page.rotate || 0) + getPageRotation(i)) % 360;
-            const vp = page.getViewport({ scale: currentScale, rotation: rot });
-            await buildTextLayer(page, vp, i);
-        }
-
-        function showViewerToast(text) {
-            const host = document.getElementById('panelPdf');
-            if (!host) return;
-            let t = document.getElementById('viewerToast');
-            if (!t) { t = document.createElement('div'); t.id = 'viewerToast'; t.className = 'viewer-toast'; host.appendChild(t); }
-            t.textContent = text; t.style.opacity = '1';
-            clearTimeout(t._h); t._h = setTimeout(() => { t.style.opacity = '0'; }, 2200);
-        }
-
-        function setPdfSelectMode(on, silent) {
-            pdfSelectMode = !!on;
-            const c = document.getElementById('pdfScrollContainer');
-            if (c) c.classList.toggle('select-mode', pdfSelectMode);
-            const btn = document.getElementById('selectModeBtn');
-            if (btn) { btn.classList.toggle('mode-on', pdfSelectMode); btn.textContent = pdfSelectMode ? '🔤 Đang chọn chữ' : '✋ Kéo trang'; }
-            if (pdfSelectMode) {
-                if (currentPdfDoc) {
-                    for (let i = 1; i <= currentPdfDoc.numPages; i++) {
-                        const cv = document.getElementById(`canvas-page-${i}`), tl = document.getElementById(`tl-layer-${i}`);
-                        if (cv && tl && cv.dataset.rendered === 'true' && !tl.firstChild) buildTextLayerForPageNum(i).catch(() => {});
-                    }
-                }
-                if (!silent) showViewerToast('🔤 Chế độ chọn chữ: giữ chuột và kéo để bôi đen (theo dòng nhìn thấy), Ctrl+C để copy. Nháy đúp hoặc Esc để thoát.');
-            } else {
-                const sel = window.getSelection && window.getSelection();
-                if (sel) sel.removeAllRanges();
-                if (!silent) showViewerToast('✋ Chế độ kéo trang');
-            }
-        }
-        function toggleSelectMode() { setPdfSelectMode(!pdfSelectMode); }
-
-        function initSelectMode() {
-            const c = document.getElementById('pdfScrollContainer');
-            if (!c) return;
-            const st = { down: false, x: 0, y: 0, raf: 0 };
-
-            c.addEventListener('dblclick', (e) => {
-                if (!currentPdfDoc || c.querySelector('.office-sheet-wrap')) return;
-                if (e.target.closest && e.target.closest('.page-indicator-label, button, input')) return;
-                e.preventDefault();
-                toggleSelectMode();
-            });
-            window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pdfSelectMode) setPdfSelectMode(false); });
-
-            const caretAt = (x, y) => {
-                if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(x, y); return r ? { node: r.startContainer, offset: r.startOffset } : null; }
-                if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(x, y); return p ? { node: p.offsetNode, offset: p.offset } : null; }
-                return null;
-            };
-
-            const tick = () => {
-                if (!st.down) return;
-                const r = c.getBoundingClientRect();
-                const edge = 50;
-                const speed = d => Math.min(48, 3 + d * 0.45);
-                let dx = 0, dy = 0;
-                if (st.y > r.bottom - edge) dy = speed(st.y - (r.bottom - edge));
-                else if (st.y < r.top + edge) dy = -speed((r.top + edge) - st.y);
-                if (st.x > r.right - edge) dx = speed(st.x - (r.right - edge));
-                else if (st.x < r.left + edge) dx = -speed((r.left + edge) - st.x);
-                if (dx || dy) {
-                    c.scrollLeft += dx; c.scrollTop += dy;
-                    // Trang cuộn dưới con trỏ đứng yên => kéo dài vùng chọn tới chữ đang nằm dưới con trỏ
-                    const px = Math.max(r.left + 3, Math.min(r.right - 3, st.x));
-                    const py = Math.max(r.top + 3, Math.min(r.bottom - 3, st.y));
-                    const sel = window.getSelection();
-                    const pos = caretAt(px, py);
-                    if (sel && sel.anchorNode && pos && pos.node && pos.node.nodeType === 3 && pos.node.parentElement && pos.node.parentElement.closest('.pdf-text-layer > span')) {
-                        try { sel.extend(pos.node, pos.offset); } catch (err) {}
-                    }
-                }
-                st.raf = requestAnimationFrame(tick);
-            };
-
-            c.addEventListener('mousedown', (e) => {
-                if (!pdfSelectMode || e.button !== 0 || c.querySelector('.office-sheet-wrap')) return;
-                if (e.target.closest && e.target.closest('.page-indicator-label, button')) return;
-                st.down = true; st.x = e.clientX; st.y = e.clientY;
-                cancelAnimationFrame(st.raf); st.raf = requestAnimationFrame(tick);
-            });
-            window.addEventListener('mousemove', (e) => { if (st.down) { st.x = e.clientX; st.y = e.clientY; } });
-            const setSelecting = on => document.querySelectorAll('.pdf-text-layer').forEach(l => l.classList.toggle('selecting', on));
-            c.addEventListener('mousedown', (e) => {
-                if (pdfSelectMode && e.button === 0 && !c.querySelector('.office-sheet-wrap')) setSelecting(true);
-            }, true);
-            window.addEventListener('mouseup', () => { st.down = false; cancelAnimationFrame(st.raf); setSelecting(false); });
-            window.addEventListener('blur', () => setSelecting(false));
-
-            // Giữ "mỏ neo" ngay cạnh chữ đang là đầu vùng chọn
-            document.addEventListener('selectionchange', () => {
-                if (!pdfSelectMode) return;
-                const sel = window.getSelection();
-                if (!sel || !sel.focusNode) return;
-                const el = sel.focusNode.nodeType === 3 ? sel.focusNode.parentNode : sel.focusNode;
-                const span = el && el.closest ? el.closest('.pdf-text-layer > span') : null;
-                if (!span) return;
-                const layer = span.parentNode, eoc = layer._eoc;
-                if (!eoc) return;
-                let backward = false;
-                if (sel.anchorNode) {
-                    if (sel.anchorNode === sel.focusNode) backward = sel.focusOffset < sel.anchorOffset;
-                    else backward = !!(sel.anchorNode.compareDocumentPosition(sel.focusNode) & Node.DOCUMENT_POSITION_PRECEDING);
-                }
-                const ref = backward ? span : span.nextSibling;
-                if (ref !== eoc && eoc.nextSibling !== ref) layer.insertBefore(eoc, ref);
-            });
-        }
-
         function initPanAndZoom() {
             const c = document.getElementById('pdfScrollContainer'); 
             let isPan = false; let sx, sy, sl, st;
 
             c.addEventListener('mousedown', (e) => { 
                 if (e.button !== 0 && e.button !== 1) return; 
-                if (pdfSelectMode && !c.querySelector('.office-sheet-wrap')) return;   // chế độ chọn chữ: kéo chuột = bôi đen
                 if (e.target.tagName === 'TD' || e.target.tagName === 'TH') return;
+                // nhấp đúp rồi giữ chuột kéo trên trang PDF = chọn chữ, không kéo trang
+                if (e.button === 0 && e.detail >= 2 && e.target.closest && e.target.closest('.pdf-page-wrapper') && !e.target.closest('button, input, .page-indicator-label')) return;
                 isPan = true; c.classList.add('grabbing'); 
                 sx = e.pageX - c.offsetLeft; sy = e.pageY - c.offsetTop; 
                 sl = c.scrollLeft; st = c.scrollTop; 
@@ -5196,6 +5770,395 @@
             }, { passive: false });
         }
 
+        /* ================= CHỌN + COPY CHỮ TRONG KHUNG XEM ================= */
+        /* Excel/Word xem trước: nhấp đúp copy từ đang được bôi chọn (Shift = copy cả ô). Với PDF xem phần "Chọn chữ" bên dưới. */
+        let copyToastTimer = null, copyMeasureCtx = null;
+        function showCopyToast(msg, ok = true, action = null) {
+            let el = document.getElementById('copyToast');
+            if (!el) { el = document.createElement('div'); el.id = 'copyToast'; document.body.appendChild(el); }
+            el.textContent = msg;
+            el.style.pointerEvents = ''; el.style.whiteSpace = action ? 'normal' : ''; el.style.overflow = action ? 'visible' : '';
+            if (action) {   // thông báo có nút bấm (vd. "OCR trang này")
+                const b = document.createElement('button');
+                b.type = 'button'; b.textContent = action.label;
+                b.style.cssText = 'margin-left:10px;background:#8e44ad;color:#fff;border:none;border-radius:4px;padding:3px 10px;font-weight:bold;cursor:pointer;';
+                b.onclick = () => { el.classList.remove('show'); action.fn(); };
+                el.appendChild(b);
+                el.style.pointerEvents = 'auto';
+            }
+            el.className = 'copy-toast show' + (ok ? '' : ' warn');
+            clearTimeout(copyToastTimer);
+            copyToastTimer = setTimeout(() => el.classList.remove('show'), action ? 10000 : (ok ? 1800 : 4200));
+        }
+        async function copyTextToClipboard(text) {
+            try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch (e) {}
+            try {   // dự phòng cho trình duyệt/ngữ cảnh không cho dùng Clipboard API (vd. mở file trực tiếp)
+                const ta = document.createElement('textarea');
+                ta.value = text; ta.style.cssText = 'position:fixed; left:-9999px; top:0; opacity:0;';
+                document.body.appendChild(ta); ta.select();
+                const ok = document.execCommand('copy');
+                ta.remove();
+                return ok;
+            } catch (e) { return false; }
+        }
+        const shortForToast = s => (s.length > 70 ? s.slice(0, 70) + '…' : s);
+
+        /* ----- Chọn chữ trên khung xem PDF (canvas nên tự dựng danh sách chữ, dòng, đoạn của trang) -----
+           CHỈ MỘT THAO TÁC: NHẤP ĐÚP.
+           • Nhấp đúp                       = chọn 1 chữ
+           • Nhấp đúp rồi GIỮ chuột và kéo  = chọn tiếp theo từng chữ (qua nhiều dòng / cả đoạn), kéo sát mép trên/dưới thì tự cuộn
+           • Thả chuột là tự copy (Ctrl+C copy lại); nhấp chuột 1 lần ở đâu đó để bỏ chọn
+           • Chữ OCR chọn được như chữ thường; chỗ là hình chưa OCR thì app báo để bạn bấm 🔤 OCR trang ảnh */
+        let pdfSel = null, pdfOcrVersion = 0, selMeasureCtx = null;
+        const pdfWordCache = new Map();
+        const selCharW = {};
+        const SEL_LEAD_RE = /^[(\[{"'“‘<«]+/, SEL_TRAIL_RE = /[)\]}"'”’>»,;:!?.]+$/;
+        const SEL_LIST_MARK = /^(\(?\d{1,2}[).]|[a-z]\)|[•●○■□▪◦·–—*-]$)/i;
+
+        function selTextWidths(str) {   // độ rộng tích luỹ từng ký tự (tỉ lệ), dùng để chia chữ trong 1 mục chữ cho sát
+            selMeasureCtx = selMeasureCtx || document.createElement('canvas').getContext('2d');
+            selMeasureCtx.font = '100px Arial, Helvetica, sans-serif';
+            const cum = [0];
+            for (let i = 0; i < str.length; i++) {
+                const ch = str[i];
+                let w = selCharW[ch];
+                if (w === undefined) { w = selMeasureCtx.measureText(ch).width; selCharW[ch] = w; }
+                cum.push(cum[i] + w);
+            }
+            return cum;
+        }
+
+        // Dựng danh sách chữ của trang: chữ gốc PDF + chữ OCR, kèm vị trí, rồi gom thành dòng và đoạn văn
+        async function buildPageWords(pageNum) {
+            const page = await currentPdfDoc.getPage(pageNum);
+            const rot = ((page.rotate || 0) + getPageRotation(pageNum)) % 360;
+            const key = `${currentPdfKey}|${pageNum}|${currentScale.toFixed(4)}|${rot}|${pdfOcrVersion}`;
+            if (pdfWordCache.has(key)) return pdfWordCache.get(key);
+            const viewport = page.getViewport({ scale: currentScale, rotation: rot });
+            const tc = await page.getTextContent({ normalizeWhitespace: true, disableCombineTextItems: false });
+            let items = (tc.items || []).filter(it => it.str && it.str.trim());
+            const nText = items.length;
+            try { const oc = await getOcrItems(page, pageNum); items = items.concat(oc.filter(it => it.str && it.str.trim())); } catch (e) {}
+
+            let words = [];
+            items.forEach((it, idx) => {
+                const t = pdfjsLib.Util.transform(viewport.transform, it.transform);
+                const fw = Math.hypot(t[0], t[1]) || 1, hl = Math.hypot(t[2], t[3]) || fw;
+                const dx = t[0] / fw, dy = t[1] / fw, hx = t[2] / hl, hy = t[3] / hl;
+                const str = it.str;
+                const W = (it.width || 0) * viewport.scale || fw * str.length * 0.5;
+                const cl = collapseLetterSpacingMap(str), cs = cl.str;       // "M F A" -> "MFA"
+                let frac;
+                if (cl.map || str.length > 400) frac = k => Math.min(1, Math.max(0, k / str.length));
+                else { const cum = selTextWidths(str), total = cum[str.length] || 1; frac = k => Math.min(1, Math.max(0, cum[Math.min(k, str.length)] / total)); }
+                const re = /\S+/g; let m;
+                while ((m = re.exec(cs)) !== null) {
+                    const tok = m[0];
+                    const o0 = cl.map ? cl.map[m.index] : m.index;
+                    const o1 = cl.map ? cl.map[m.index + tok.length - 1] + 1 : m.index + tok.length;
+                    const a0 = frac(o0) * W, a1 = frac(o1) * W;
+                    const px0 = t[4] + a0 * dx, py0 = t[5] + a0 * dy;
+                    const xs = [px0, t[4] + a1 * dx, px0 + t[2], t[4] + a1 * dx + t[2]];
+                    const ys = [py0, t[5] + a1 * dy, py0 + t[3], t[5] + a1 * dy + t[3]];
+                    const ls = (tok.match(SEL_LEAD_RE) || [''])[0].length, te = (tok.match(SEL_TRAIL_RE) || [''])[0].length;
+                    const u0 = px0 * dx + py0 * dy;
+                    words.push({
+                        text: tok, core: (ls + te >= tok.length) ? tok : tok.slice(ls, tok.length - te),
+                        x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys),
+                        dir: Math.round(Math.atan2(dy, dx) * 12 / Math.PI), hl,
+                        u0, u1: u0 + (a1 - a0), v: -(px0 * hx + py0 * hy), fx: dx, fy: dy, nx: -hx, ny: -hy, ocr: idx >= nText
+                    });
+                }
+            });
+            // chữ OCR trùng chỗ với chữ gốc của PDF thì bỏ (tránh chọn/copy 2 lần)
+            const textWords = words.filter(w => !w.ocr);
+            words = words.filter(w => {
+                if (!w.ocr) return true;
+                const a = (w.x1 - w.x0) * (w.y1 - w.y0) || 1;
+                return !textWords.some(o => {
+                    const ix = Math.min(w.x1, o.x1) - Math.max(w.x0, o.x0), iy = Math.min(w.y1, o.y1) - Math.max(w.y0, o.y0);
+                    return ix > 0 && iy > 0 && ix * iy / Math.min(a, (o.x1 - o.x0) * (o.y1 - o.y0) || 1) > 0.5;
+                });
+            });
+            words.forEach((w, i) => { w.i = i; });
+
+            // gom thành dòng (cùng đường cơ sở) rồi cắt thành đoạn dòng khi có khoảng trống lớn (cột/ô bảng khác nhau)
+            const byDir = new Map();
+            words.forEach(w => { if (!byDir.has(w.dir)) byDir.set(w.dir, []); byDir.get(w.dir).push(w); });
+            const segs = [];
+            [...byDir.keys()].sort((a, b) => a - b).forEach(dir => {
+                const ws = byDir.get(dir).sort((a, b) => a.v - b.v || a.u0 - b.u0);
+                const lines = [];
+                ws.forEach(w => {
+                    const last = lines[lines.length - 1];
+                    if (last && Math.abs(w.v - last.v) <= 0.45 * Math.min(w.hl, last.hl)) { last.words.push(w); last.v = last.words.reduce((s, x) => s + x.v, 0) / last.words.length; }
+                    else lines.push({ v: w.v, hl: w.hl, words: [w] });
+                });
+                lines.forEach(L => {
+                    L.words.sort((a, b) => a.u0 - b.u0);
+                    let cur = null;
+                    L.words.forEach(w => {
+                        if (cur && (w.u0 - cur.u1) <= 2.2 * Math.max(cur.hl, w.hl)) { cur.words.push(w); cur.u1 = Math.max(cur.u1, w.u1); }
+                        else { cur = { dir, words: [w], v: L.v, u0: w.u0, u1: w.u1, hl: w.hl }; segs.push(cur); }
+                    });
+                });
+            });
+            // gom các dòng thành đoạn văn: dòng kế tiếp sát bên dưới, cùng cỡ chữ, thẳng lề; dòng bắt đầu bằng (1) 2. • là mục mới
+            segs.forEach((s, i) => { s.i = i; s.root = i; });
+            const find = i => { while (segs[i].root !== i) { segs[i].root = segs[segs[i].root].root; i = segs[i].root; } return i; };
+            for (let i = 0; i < segs.length; i++) {
+                const a = segs[i];
+                if (!(a.words.length >= 3 || (a.u1 - a.u0) >= 10 * a.hl)) continue;       // chỉ dòng "văn xuôi" mới nối được xuống dưới (tránh dính các ô bảng)
+                let best = -1, bestDv = Infinity;
+                for (let j = i + 1; j < segs.length; j++) {
+                    const b = segs[j];
+                    if (b.dir !== a.dir) break;
+                    const dv = b.v - a.v;
+                    if (dv > 1.7 * a.hl) break;
+                    if (dv < 0.5 * a.hl) continue;                                          // cùng dòng (cột khác)
+                    const ratio = b.hl / a.hl; if (ratio < 0.75 || ratio > 1.33) continue;
+                    if (Math.min(a.u1, b.u1) - Math.max(a.u0, b.u0) <= 0 || Math.abs(b.u0 - a.u0) > 3.5 * a.hl) continue;
+                    if (SEL_LIST_MARK.test(b.words[0].text)) continue;
+                    if (dv < bestDv) { best = j; bestDv = dv; }
+                }
+                if (best >= 0) segs[find(best)].root = find(i);
+            }
+            segs.forEach(s => { s.para = find(s.i); });
+            segs.forEach((s, si) => s.words.forEach(w => { w.seg = si; }));
+
+            const order = [...words].sort((x, y) => (x.seg - y.seg) || (x.u0 - y.u0));      // thứ tự đọc: dòng trên trước, trái sang phải
+            order.forEach((w, k) => { w.ord = k; });
+            const data = { pageNum, viewport, words, segs, order };
+            pdfWordCache.set(key, data);
+            if (pdfWordCache.size > 12) pdfWordCache.delete(pdfWordCache.keys().next().value);
+            return data;
+        }
+
+        function pdfSelHitWord(data, px, py) {
+            let best = null, bestScore = Infinity;
+            data.words.forEach(w => {
+                const dxo = px < w.x0 ? w.x0 - px : (px > w.x1 ? px - w.x1 : 0);
+                const dyo = py < w.y0 ? w.y0 - py : (py > w.y1 ? py - w.y1 : 0);
+                const d = Math.hypot(dxo, dyo);
+                if (d > Math.max(3, w.hl * 0.45)) return;
+                const sc = d + (w.x1 - w.x0) * (w.y1 - w.y0) * 1e-6 + (w.ocr ? 0.01 : 0);
+                if (sc < bestScore) { bestScore = sc; best = w.i; }
+            });
+            return best;
+        }
+
+        // Ghép các chữ đã chọn thành văn bản: cùng dòng cách nhau bằng dấu cách (ô bảng cách nhau bằng Tab); các dòng của cùng 1 đoạn nối liền, khác đoạn xuống dòng
+        function pdfSelComposeText(data, idxSet, single) {
+            const ws = [...idxSet].map(i => data.words[i]);
+            if (single && ws.length === 1) return ws[0].core;
+            ws.sort((a, b) => (a.seg - b.seg) || (a.u0 - b.u0));
+            const segGroups = [];
+            ws.forEach(w => {
+                const last = segGroups[segGroups.length - 1];
+                if (last && last.seg === w.seg) last.words.push(w); else segGroups.push({ seg: w.seg, words: [w] });
+            });
+            const lines = [];
+            segGroups.forEach(g => {
+                const s = data.segs[g.seg];
+                const text = g.words.map(w => w.text).join(' ');
+                const last = lines[lines.length - 1];
+                if (last && last.dir === s.dir && Math.abs(last.v - s.v) < 0.5 * s.hl) { last.parts.push(text); last.n++; }
+                else lines.push({ dir: s.dir, v: s.v, parts: [text], n: 1, para: s.para });
+            });
+            let res = '';
+            lines.forEach((L, i) => {
+                const txt = L.parts.join('\t');
+                if (i === 0) { res = txt; return; }
+                const P = lines[i - 1];
+                if (P.n === 1 && L.n === 1 && P.para === L.para) res += (/[A-Za-zÀ-ỹ]-$/.test(res) && /^[a-zà-ỹ]/.test(txt)) ? txt : ' ' + txt;
+                else res += '\n' + txt;
+            });
+            return res;
+        }
+
+        function clearPdfSelection() {
+            pdfSel = null;
+            document.querySelectorAll('.pdf-sel-layer').forEach(n => n.remove());
+        }
+
+        // Tô xanh các chữ đang chọn (gộp các chữ liền nhau trên cùng 1 dòng thành 1 dải)
+        function pdfSelRender() {
+            document.querySelectorAll('.pdf-sel-layer').forEach(n => n.remove());
+            if (!pdfSel) return;
+            const wrapper = document.getElementById(`pdf-page-${pdfSel.pageNum}`);
+            if (!wrapper) return;
+            const data = pdfSel.data, r = wrapper.getBoundingClientRect();
+            const sx = r.width / Math.max(1, data.viewport.width), sy = r.height / Math.max(1, data.viewport.height);
+            const layer = document.createElement('div');
+            layer.className = 'pdf-sel-layer';
+            const bySeg = new Map();
+            pdfSel.words.forEach(i => { const w = data.words[i]; if (!bySeg.has(w.seg)) bySeg.set(w.seg, []); bySeg.get(w.seg).push(w); });
+            bySeg.forEach(list => {
+                list.sort((a, b) => a.u0 - b.u0);
+                const runs = []; let run = null;
+                list.forEach(w => {
+                    if (run && (w.u0 - run.u1) <= 1.6 * w.hl) { run.ws.push(w); run.u1 = Math.max(run.u1, w.u1); }
+                    else { run = { ws: [w], u1: w.u1 }; runs.push(run); }
+                });
+                runs.forEach(rn => {
+                    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+                    rn.ws.forEach(w => { x0 = Math.min(x0, w.x0); y0 = Math.min(y0, w.y0); x1 = Math.max(x1, w.x1); y1 = Math.max(y1, w.y1); });
+                    const d = document.createElement('div');
+                    d.className = 'pdf-sel-rect';
+                    d.style.left = (x0 * sx - 1.5) + 'px'; d.style.top = (y0 * sy - 1.5) + 'px';
+                    d.style.width = ((x1 - x0) * sx + 3) + 'px'; d.style.height = ((y1 - y0) * sy + 3) + 'px';
+                    layer.appendChild(d);
+                });
+            });
+            wrapper.appendChild(layer);
+        }
+
+        async function pdfSelCopy() {
+            if (!pdfSel) return;
+            const text = pdfSelComposeText(pdfSel.data, pdfSel.words, true).trim();
+            if (!text) return;
+            const ok = await copyTextToClipboard(text);
+            const n = pdfSel.words.size;
+            showCopyToast(ok ? (n === 1 ? `📋 Đã copy: ${shortForToast(text)}` : `📋 Đã copy ${n} chữ: ${shortForToast(text.replace(/\s+/g, ' '))}`)
+                             : '❌ Trình duyệt không cho copy tự động. Hãy thử lại hoặc mở file qua máy chủ/https.', ok);
+        }
+
+        // Chữ gần con trỏ nhất, tính THEO DÒNG như trình soạn thảo: vị trí dọc chọn dòng, vị trí ngang chọn chữ trong dòng
+        // (kéo ra quá cuối dòng thì chọn tới chữ cuối dòng đó; kéo giữa 2 dòng thì lấy dòng gần hơn). Hiểu cả chữ bị xoay.
+        function pdfSelNearestWord(data, px, py) {
+            let bestSeg = null, bestCost = Infinity, bestPu = 0;
+            data.segs.forEach(s => {
+                const w0 = s.words[0];
+                const pu = px * w0.fx + py * w0.fy, pv = px * w0.nx + py * w0.ny;       // con trỏ trong hệ trục của dòng (dọc theo chữ / vuông góc)
+                const top = s.v - s.hl, bot = s.v + 0.25 * s.hl;
+                const dv = pv < top ? top - pv : (pv > bot ? pv - bot : 0);
+                const du = pu < s.u0 ? s.u0 - pu : (pu > s.u1 ? pu - s.u1 : 0);
+                const cost = dv * 10 + du;                                              // lệch dòng tính rất nặng, lệch dọc theo dòng tính nhẹ
+                if (cost < bestCost) { bestCost = cost; bestSeg = s; bestPu = pu; }
+            });
+            if (!bestSeg) return null;
+            let best = null, bd = Infinity;
+            bestSeg.words.forEach(w => {
+                const d = bestPu < w.u0 ? w.u0 - bestPu : (bestPu > w.u1 ? bestPu - w.u1 : 0);
+                if (d < bd) { bd = d; best = w.i; }
+            });
+            return best;
+        }
+        function pdfSelRange(data, a, b) {                          // mọi chữ nằm giữa 2 chữ theo thứ tự đọc
+            const lo = Math.min(data.words[a].ord, data.words[b].ord), hi = Math.max(data.words[a].ord, data.words[b].ord);
+            return data.order.slice(lo, hi + 1).map(w => w.i);
+        }
+
+        // Trang đã OCR chưa? (để báo đúng việc cần làm khi nhấp vào chỗ không có chữ)
+        async function pdfPageHasOcr(pageNum) {
+            try {
+                if (!currentPdfKey) return false;
+                const f = ocrFindFile(currentPdfKey);
+                if (!f) return false;
+                const e = await ocrLoadEntry(f);
+                return !!(e && e.pages && e.pages[pageNum]);
+            } catch (err) { return false; }
+        }
+        async function pdfSelExplainNoText(pageNum, data) {
+            const doOcr = { label: '🔤 OCR trang này', fn: () => ocrCurrentPageNow(pageNum) };
+            if (await pdfPageHasOcr(pageNum)) showCopyToast('Không có chữ ở vị trí này. Hãy nhấp đúp ngay trên chữ cần chọn, hoặc OCR lại nếu chữ vẫn thiếu.', false, { label: '🔤 OCR lại trang', fn: doOcr.fn });
+            else if (data && !data.words.length) showCopyToast('Trang này chưa có chữ để chọn (có thể là ảnh quét).', false, doOcr);
+            else showCopyToast('Chỗ này là hình ảnh nên chưa chọn được chữ.', false, doOcr);
+        }
+
+        function pdfPageNumOf(el) {
+            const w = el && el.closest ? el.closest('.pdf-page-wrapper') : null;
+            return w ? parseInt(String(w.id).replace('pdf-page-', ''), 10) : 0;
+        }
+        async function pdfSelWordAt(pageNum, clientX, clientY) {
+            const wrapper = document.getElementById(`pdf-page-${pageNum}`);
+            const data = await buildPageWords(pageNum);
+            const r = wrapper.getBoundingClientRect();
+            const px = (clientX - r.left) * (data.viewport.width / Math.max(1, r.width));
+            const py = (clientY - r.top) * (data.viewport.height / Math.max(1, r.height));
+            return { data, idx: pdfSelHitWord(data, px, py) };
+        }
+
+        function initDoubleClickCopy() {
+            const c = document.getElementById('pdfScrollContainer');
+            if (!c) return;
+
+            // Nhấp đúp (lần nhấn thứ 2 giữ chuột) = bắt đầu chọn chữ; kéo = chọn tiếp; thả = copy
+            const startWordDrag = (e, pageNum) => {
+                const drag = { x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, moved: false, data: null, anchor: null, timer: null, raf: 0 };
+                const ready = pdfSelWordAt(pageNum, e.clientX, e.clientY)
+                    .then(r => { drag.data = r.data; drag.anchor = r.idx; })
+                    .catch(err => console.warn('chọn chữ', err));
+                const update = () => {
+                    drag.raf = 0;
+                    if (!drag.data || drag.anchor == null || !drag.moved) return;
+                    const wrapper = document.getElementById(`pdf-page-${pageNum}`);
+                    if (!wrapper) return;
+                    const rr = wrapper.getBoundingClientRect();
+                    const px = (drag.x - rr.left) * (drag.data.viewport.width / Math.max(1, rr.width));
+                    const py = (drag.y - rr.top) * (drag.data.viewport.height / Math.max(1, rr.height));
+                    const cur = pdfSelNearestWord(drag.data, px, py);
+                    pdfSel = { pageNum, data: drag.data, words: new Set(pdfSelRange(drag.data, drag.anchor, cur)) };
+                    pdfSelRender();
+                };
+                const schedule = () => { if (!drag.raf) drag.raf = requestAnimationFrame(update); };
+                const move = ev => {
+                    drag.x = ev.clientX; drag.y = ev.clientY;
+                    if (Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) > 4) drag.moved = true;
+                    schedule();
+                };
+                // kéo sát mép trên/dưới khung xem thì tự cuộn để chọn tiếp
+                drag.timer = setInterval(() => {
+                    const cr = c.getBoundingClientRect();
+                    let dy = 0;
+                    if (drag.y < cr.top + 36) dy = -Math.min(28, (cr.top + 36 - drag.y) / 2 + 4);
+                    else if (drag.y > cr.bottom - 36) dy = Math.min(28, (drag.y - (cr.bottom - 36)) / 2 + 4);
+                    if (dy) { c.scrollTop += dy; drag.moved = true; schedule(); }
+                }, 30);
+                window.addEventListener('mousemove', move);
+                window.addEventListener('mouseup', async () => {
+                    window.removeEventListener('mousemove', move);
+                    clearInterval(drag.timer);
+                    if (drag.raf) cancelAnimationFrame(drag.raf);
+                    await ready;
+                    if (!drag.data) { showCopyToast('Không chọn được chữ trên trang này.', false); return; }
+                    if (!drag.data.words.length || drag.anchor == null) { await pdfSelExplainNoText(pageNum, drag.data); return; }
+                    if (drag.moved) update();
+                    else { pdfSel = { pageNum, data: drag.data, words: new Set([drag.anchor]) }; pdfSelRender(); }
+                    await pdfSelCopy();
+                }, { once: true });
+            };
+
+            c.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                if (e.detail < 2) { if (pdfSel) clearPdfSelection(); return; }          // nhấp 1 lần = bỏ chọn cũ
+                const pageNum = pdfPageNumOf(e.target);
+                if (e.detail > 2 || !pageNum || e.target.closest('button, input, select, textarea, .page-indicator-label')) return;
+                e.preventDefault();                                                      // chặn bôi chọn gốc của trình duyệt
+                if (window.getSelection) window.getSelection().removeAllRanges();
+                startWordDrag(e, pageNum);
+            });
+
+            // Xem trước Excel/Word (chữ dạng HTML): trình duyệt đã tự bôi chọn từ vừa nhấp đúp -> copy luôn
+            c.addEventListener('dblclick', (e) => {
+                if (e.button !== 0 || pdfPageNumOf(e.target)) return;                   // PDF đã xử lý ở trên
+                if (e.target.closest('button, input, select, textarea')) return;
+                setTimeout(async () => {
+                    const txt = window.getSelection ? String(window.getSelection()).trim() : '';
+                    if (!txt) return;
+                    const ok = await copyTextToClipboard(txt);
+                    showCopyToast(ok ? `📋 Đã copy: ${shortForToast(txt)}` : '❌ Trình duyệt không cho copy tự động.', ok);
+                }, 0);
+            });
+
+            // Ctrl+C: copy lại vùng đang chọn
+            document.addEventListener('keydown', (e) => {
+                if (!pdfSel) return;
+                if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement && document.activeElement.tagName) || '')) return;
+                if ((e.ctrlKey || e.metaKey) && String(e.key).toLowerCase() === 'c' && !(window.getSelection && String(window.getSelection()).trim())) { e.preventDefault(); pdfSelCopy(); }
+            });
+        }
+
         function initResizers() {
             const mkDrag = (r, tp, isSb) => {
                 let isD = false; let sx, sw;
@@ -5209,7 +6172,40 @@
 
         initResizers(); 
         initPanAndZoom();
-        initSelectMode();
+        initDoubleClickCopy();
     </script>
+    <div id="ocrModal" class="ocr-modal" onclick="if(event.target===this) closeOcrPanel()">
+        <div class="ocr-box">
+            <div class="ocr-head"><b>🔤 OCR trang ảnh (nhận dạng chữ trong hình)</b><button class="ocr-btn sec" style="padding:3px 9px;" onclick="closeOcrPanel()">✖</button></div>
+            <div style="color:#aaa; line-height:1.5;">Dùng cho PDF mà chữ được chèn <b>dạng ảnh / scan / chữ đã chuyển thành đường nét</b> nên tool không tìm được. OCR chạy <b>ngay trên máy bạn</b> (thư viện Tesseract.js), không gửi tài liệu đi đâu. Lần đầu cần mạng để tải thư viện và dữ liệu tiếng Việt, sau đó được trình duyệt lưu lại. Kết quả OCR được lưu vào chỉ mục nên lần sau không phải làm lại.</div>
+            <div class="ocr-row">
+                <label>Phạm vi:
+                    <select id="ocrScope">
+                        <option value="page">Trang đang xem (nhanh nhất, OCR dù trang đã có chữ)</option>
+                        <option value="file">File đang mở</option>
+                        <option value="folder">Thư mục đang chọn (chỉ các trang không có chữ)</option>
+                    </select>
+                </label>
+                <label>Ngôn ngữ:
+                    <select id="ocrLang">
+                        <option value="vie+eng">Việt + Anh</option>
+                        <option value="eng">Chỉ Anh</option>
+                        <option value="vie">Chỉ Việt</option>
+                    </select>
+                </label>
+            </div>
+            <label style="display:flex; gap:6px; align-items:flex-start;"><input type="checkbox" id="ocrImgMode"> Cả trang có ảnh lớn kèm chữ (bảng bị chèn dạng ảnh trên trang vẫn có chữ khác). Chậm hơn, chỉ áp dụng cho "File đang mở".</label>
+            <label style="display:flex; gap:6px; align-items:flex-start;"><input type="checkbox" id="ocrRotate" checked> Thử cả hướng xoay (trang scan ngược, hoặc bảng/ghi chú bị xoay 90° trên cùng trang). Trang đã đọc tốt thì tự bỏ qua bước này; bỏ chọn nếu muốn nhanh nhất.</label>
+            <div class="ocr-row">
+                <button class="ocr-btn sec" id="ocrScanBtn" onclick="ocrScanCandidates()">🔎 Tìm file có trang không có chữ</button>
+                <button class="ocr-btn" id="ocrStartBtn" onclick="ocrStartFromPanel()">▶ Bắt đầu OCR</button>
+                <button class="ocr-btn stop" id="ocrStopBtn" onclick="ocrStop()" disabled>⏹ Dừng</button>
+            </div>
+            <div id="ocrStatusLine" style="color:#5bc0be;"></div>
+            <div class="ocr-bar"><div id="ocrBarFill"></div></div>
+            <div class="ocr-log" id="ocrLog">Sẵn sàng.</div>
+            <div class="ocr-list" id="ocrList"></div>
+        </div>
+    </div>
 </body>
 </html>
