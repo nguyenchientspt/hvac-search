@@ -1700,8 +1700,26 @@
                     XLSX.writeFile(wb, "Tu_Vung_HVAC.xlsx");
                 };
 
-                overlay.querySelector('#glImport').onclick = () => overlay.querySelector('#glFile').click();
+                // SỬA LỖI BẢO MẬT: Phải xin quyền ghi NGAY LÚC CLICK, trước khi mở hộp chọn file
+                overlay.querySelector('#glImport').onclick = async () => {
+                    const isShared = document.getElementById('glShare').checked;
+                    if (isShared && sourceFolderHandle) {
+                        try {
+                            const canWrite = await ensureFolderWritable();
+                            if (!canWrite) {
+                                alert("⚠️ Trình duyệt chưa cấp quyền ghi vào thư mục. Hãy chọn 'Allow' (Cho phép) để cập nhật từ điển chung.");
+                                return; // Chặn lại nếu người dùng bấm Block
+                            }
+                        } catch (err) {
+                            alert("⚠️ Lỗi xin quyền ghi: " + err.message);
+                            return;
+                        }
+                    }
+                    // Đã có quyền -> Mở hộp thoại chọn file
+                    overlay.querySelector('#glFile').click();
+                };
                 
+                // KHI CHỌN FILE XONG SẼ XỬ LÝ ĐỌC DATA
                 overlay.querySelector('#glFile').onchange = async (e) => {
                     const f = e.target.files && e.target.files[0];
                     if (!f) return;
@@ -1718,8 +1736,10 @@
                             
                             rows.forEach(row => {
                                 const key = String(row[0] || '').trim();
-                                // BỎ QUA 2 DÒNG TIÊU ĐỀ
-                                if (key && !key.toUpperCase().includes('HƯỚNG DẪN') && !key.toUpperCase().includes('TỪ KHÓA CHÍNH')) {
+                                const upperKey = key.toUpperCase();
+                                
+                                // BỎ QUA 100% dòng Tiêu đề và dòng Ví dụ
+                                if (key && !upperKey.includes('HƯỚNG DẪN') && !upperKey.includes('TỪ KHÓA CHÍNH') && !upperKey.includes('(VÍ DỤ')) {
                                     const synonyms = row.slice(1).map(x => String(x || '').trim()).filter(Boolean);
                                     if (synonyms.length > 0) newData[key] = synonyms;
                                 }
@@ -1730,10 +1750,7 @@
 
                         const isShared = document.getElementById('glShare').checked;
                         if (isShared && sourceFolderHandle) {
-                            if (!(await ensureFolderWritable())) {
-                                alert("⚠️ Trình duyệt chưa cấp quyền ghi vào thư mục. Hãy cấp quyền và thử lại.");
-                                return;
-                            }
+                            // (Đã xin quyền ghi ở bước Click nên chỗ này không bị lỗi nữa)
                             const { fh, existing } = await readSharedGlossaryFile(true);
                             const merged = {};
                             mergeGlossaryInto(merged, existing);
@@ -1750,7 +1767,7 @@
                         render();
                     }
                     catch (err) { alert('❌ Lỗi khi đọc file: ' + (err && err.message ? err.message : err)); }
-                    e.target.value = ''; // Reset để chọn lại file cũ không bị lỗi
+                    e.target.value = ''; // Reset
                 };
                 // --- KẾT THÚC ĐOẠN CODE MỚI ---
                 overlay.querySelector('#glImport').onclick = () => overlay.querySelector('#glFile').click();
