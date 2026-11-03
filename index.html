@@ -275,6 +275,9 @@
         #termChipsBox .term-chip button:hover { color: #fff; background: #c53030; border-radius: 50%; }
         #termChipsBox .tc-restore { font-size: 11px; color: #aaa; }
         #termChipsBox .tc-restore a { color: #ffb74d; }
+            #termChipsBox .tc-teach { display: flex; gap: 4px; margin-top: 6px; }
+        #termChipsBox .tc-teach input { flex: 1; min-width: 0; background: #10161c; color: #e6e6e6; border: 1px solid #3c5368; border-radius: 4px; padding: 3px 6px; font-size: 11px; }
+        #termChipsBox .tc-teach button { background: #2d7db5; color: #fff; border: none; border-radius: 4px; padding: 3px 8px; font-size: 11px; cursor: pointer; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -863,6 +866,10 @@
             "cách lắp đặt": ["installation method", "how to install", "installation procedure"],
             "tháo lắp": ["removing", "removal", "disassembly", "installation and removal"],
             "lắp đặt": ["installation", "install"],
+            "bộ chia gas": ["refnet", "refnet joint", "refnet header", "branch joint", "branch kit", "bộ chia môi chất"],
+            "bộ chia ga": ["refnet", "refnet joint", "refnet header", "branch joint", "bộ chia gas"],
+            "ống chia gas": ["refnet", "refnet joint", "refnet header", "branch joint", "bộ chia gas"],
+            "bộ chia môi chất": ["refnet", "refnet joint", "refnet header", "branch joint", "bộ chia gas"],
             "dây": ["wire", "cable", "wiring", "cord"]
         };
         const hvacPhraseKeysNoTone = () => Object.keys(hvacPhrases).map(k => removeVietnameseTones(k));
@@ -1164,7 +1171,7 @@
             return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
         }
 
-        const vocab = { ready: false, uni: [], uniNorm: new Map(), bi: [], biMap: new Map(), ph: [], phSet: new Set() };
+        const vocab = { ready: false, uni: [], uniNorm: new Map(), uniCount: new Map(), total: 1, bi: [], biMap: new Map(), ph: [], phSet: new Set() };
         let vocabBuildToken = 0;
         const VOCAB_TOKEN_RE = /[\p{L}\p{N}]+(?:[-\/][\p{L}\p{N}]+)*/gu;
         const QUERY_STOPWORDS = new Set(['và','của','cho','có','là','các','những','trong','với','được','khi','thì','này','đó','để','một','về','cần','hay','hoặc','tôi','muốn','tìm','kiếm','xem','bao','nhiêu','như','thế','nào','ra','sao','the','a','of','for','and','to','in','with']);
@@ -1211,6 +1218,7 @@
             };
             CURATED_QUERY_TERMS.forEach(x => add(x, 50));
             Object.entries(hvacDictionary).forEach(([k, list]) => { add(k, 40); list.forEach(x => add(x, 20)); });
+            Object.entries(hvacPhrases).forEach(([k, list]) => { add(k, 45); list.forEach(x => add(x, 20)); });
             userSpecParams.forEach(sp => { add(sp.name, 40); (sp.keys || []).forEach(k => add(k, 30)); });
             for (const sheet of excelDataSheets) {
                 for (const row of (sheet.data || []).slice(0, 400)) {
@@ -1222,6 +1230,8 @@
 
         function hydrateVocab(uniPairs, biPairs) {
             vocab.uni = uniPairs.map(([t, c]) => { const n = removeVietnameseTones(t); return { t, n, c, alpha: /^[a-z]+$/.test(n) }; });
+            vocab.uniCount = new Map(uniPairs);
+            vocab.total = uniPairs.reduce((a, pair) => a + pair[1], 0) || 1;
             vocab.uniNorm = new Map();
             for (const e of vocab.uni) { const cur = vocab.uniNorm.get(e.n); if (!cur || e.c > cur.c) vocab.uniNorm.set(e.n, e); }
             vocab.bi = biPairs.map(([t, c]) => ({ t, n: removeVietnameseTones(t), c }));
@@ -1386,7 +1396,7 @@
         // Tách câu gõ tự nhiên thành các ý (cụm từ có trong tài liệu được giữ nguyên, bỏ từ nối)
         function splitQueryUnits(text) {
             const words = String(text || '').toLowerCase().replace(/\([^)]*\)/g, ' ').split(/\s+/).filter(Boolean);
-            const known = phrase => vocab.ready && (vocab.biMap.has(phrase) || vocab.phSet.has(phrase));
+            const known = phrase => !!hvacPhrases[phrase] || (vocab.ready && (vocab.biMap.has(phrase) || vocab.phSet.has(phrase)));
             const units = [];
             let i = 0;
             while (i < words.length) {
@@ -1399,7 +1409,7 @@
                 }
                 if (phraseLen) { units.push(words.slice(i, i + phraseLen).join(' ')); i += phraseLen; continue; }
                 const tri = words.slice(i, i + 3).join(' '), duo = words.slice(i, i + 2).join(' ');
-                if (i + 2 < words.length && vocab.ready && vocab.phSet.has(tri)) { units.push(tri); i += 3; }
+                if (i + 2 < words.length && (hvacPhrases[tri] || (vocab.ready && vocab.phSet.has(tri)))) { units.push(tri); i += 3; }
                 else if (i + 1 < words.length && known(duo)) { units.push(duo); i += 2; }
                 else { units.push(words[i]); i++; }
             }
@@ -1450,6 +1460,386 @@
             searchMain();
         }
 
+        /* ================= TỰ HỌC: TỪ ĐIỂN DO NGƯỜI DÙNG DẠY + GỢI Ý TỪ LIÊN QUAN LẤY TỪ TÀI LIỆU ================= */
+        const hvacPhrasesBase = JSON.parse(JSON.stringify(hvacPhrases));   // bản gốc để ghép lại khi từ điển người dùng đổi
+        let customGlossary = {};   // người dùng tự dạy, lưu trong trình duyệt
+        let folderGlossary = {};   // từ file tu-dien-hvac.json đặt trong folder tài liệu (cả nhóm dùng chung)
+
+        function glossaryKey(text) { return String(text || '').normalize('NFC').toLowerCase().replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim(); }
+        function glossaryList(v) {
+            const arr = Array.isArray(v) ? v : String(v || '').split(/[,;\n]/);
+            return [...new Set(arr.map(glossaryKey).filter(x => x && x.length >= 2))];
+        }
+        function mergeGlossaryInto(target, source) {
+            Object.entries(source || {}).forEach(([k, v]) => {
+                const key = glossaryKey(k), list = glossaryList(v);
+                if (key && list.length) target[key] = [...new Set([...(target[key] || []), ...list])];
+            });
+        }
+        function rebuildPhraseGlossary() {
+            Object.keys(hvacPhrases).forEach(k => { delete hvacPhrases[k]; });
+            Object.assign(hvacPhrases, JSON.parse(JSON.stringify(hvacPhrasesBase)));
+            mergeGlossaryInto(hvacPhrases, folderGlossary);
+            mergeGlossaryInto(hvacPhrases, customGlossary);
+            if (vocab.ready) { vocab.ph = buildPhraseList(); vocab.phSet = new Set(vocab.ph.map(e => e.t)); }
+        }
+        async function loadCustomGlossary() {
+            try {
+                const saved = await getCachedPdfText('glossary1');
+                if (saved && saved.entries) { customGlossary = {}; mergeGlossaryInto(customGlossary, saved.entries); }
+            } catch (e) {}
+            rebuildPhraseGlossary();
+        }
+        function saveCustomGlossary() { return putIndexEntries([{ key: 'glossary1', value: { v: 1, entries: customGlossary } }]); }
+        async function loadFolderGlossary(files) {
+            folderGlossary = {};
+            for (const f of (files || [])) {
+                try { mergeGlossaryInto(folderGlossary, JSON.parse(await f.text())); }
+                catch (e) { console.warn('File từ điển bị lỗi:', f.name, e); }
+            }
+            rebuildPhraseGlossary();
+        }
+        const GLOSSARY_FILE_RE = /^(tu-?dien|glossary).*\.json$/i;
+
+        function addGlossaryTerms(key, syns) {
+            const k = glossaryKey(key), list = glossaryList(syns);
+            if (!k || !list.length) return false;
+            customGlossary[k] = [...new Set([...(customGlossary[k] || []), ...list])];
+            saveCustomGlossary();
+            rebuildPhraseGlossary();
+            return true;
+        }
+        const SHARED_GLOSSARY_FILE = 'tu-dien-hvac.json';
+        let shareGlossaryDeniedThisSession = false;
+        function isGlossarySharingOn() { try { return localStorage.getItem('hvacShareGlossary') !== '0'; } catch (e) { return true; } }
+        function setGlossarySharing(on) { try { localStorage.setItem('hvacShareGlossary', on ? '1' : '0'); } catch (e) {} }
+
+        async function ensureFolderWritable() {
+            if (!sourceFolderHandle || !sourceFolderHandle.requestPermission) return false;
+            let state = await sourceFolderHandle.queryPermission({ mode: 'readwrite' });
+            if (state !== 'granted') state = await sourceFolderHandle.requestPermission({ mode: 'readwrite' });
+            return state === 'granted';
+        }
+        async function readSharedGlossaryFile(create) {
+            const fh = await sourceFolderHandle.getFileHandle(SHARED_GLOSSARY_FILE, { create: !!create });
+            let existing = {};
+            try {
+                const text = await (await fh.getFile()).text();
+                if (text.trim()) existing = JSON.parse(text);
+            } catch (e) { if (!create) throw e; }
+            return { fh, existing };
+        }
+        async function writeSharedGlossaryFile(fh, data) {
+            const w = await fh.createWritable();
+            await w.write(JSON.stringify(data, null, 2));
+            await w.close();
+        }
+
+        // Lưu từ mới vào file chung trong folder (gộp với những gì người khác vừa thêm), cả nhóm bấm Làm mới là có
+        async function shareGlossaryTerms(key, syns) {
+            try {
+                if (!(await ensureFolderWritable())) { shareGlossaryDeniedThisSession = true; return { ok: false, why: 'Chưa có quyền ghi vào folder' }; }
+                const { fh, existing } = await readSharedGlossaryFile(true);
+                const add = { [glossaryKey(key)]: glossaryList(syns) };
+                const merged = {};
+                mergeGlossaryInto(merged, existing);
+                mergeGlossaryInto(merged, add);
+                await writeSharedGlossaryFile(fh, merged);
+                mergeGlossaryInto(folderGlossary, add);
+                rebuildPhraseGlossary();
+                return { ok: true };
+            } catch (e) {
+                console.warn('Không ghi được từ điển chung', e);
+                return { ok: false, why: e && e.message ? e.message : String(e) };
+            }
+        }
+        async function teachGlossary(key, syns) {
+            if (!glossaryKey(key) || !glossaryList(syns).length) return false;
+            let msg = '';
+            if (isGlossarySharingOn() && sourceFolderHandle && !shareGlossaryDeniedThisSession) {
+                const r = await shareGlossaryTerms(key, syns);
+                if (r.ok) { showCopyToast('✅ Đã lưu vào từ điển chung của nhóm. Mọi người bấm Làm mới là có.', true); return true; }
+                msg = `Đã lưu trên máy này (chưa chia sẻ được cho nhóm: ${r.why}).`;
+            } else if (isGlossarySharingOn() && !sourceFolderHandle) {
+                msg = 'Đã lưu trên máy này. (Chưa nối folder bằng nút Chọn Folder nên chưa chia sẻ được cho nhóm.)';
+            } else {
+                msg = 'Đã lưu trên máy này.';
+            }
+            addGlossaryTerms(key, syns);
+            showCopyToast(msg, true);
+            return true;
+        }
+        async function teachTerm() {
+            const input = document.getElementById('teachInput');
+            if (!input) return;
+            const value = input.value;
+            if (await teachGlossary(lastChipQuery, value)) { input.value = ''; searchMain(); }
+        }
+        async function removeSharedGlossarySyn(i, j) {
+            const row = (window.sharedGlossaryRows || [])[i];
+            if (!row) return;
+            const key = row[0], syn = row[1][j];
+            try {
+                if (!(await ensureFolderWritable())) { alert('Chưa có quyền ghi vào folder nên chưa xóa được.'); return; }
+                const { fh, existing } = await readSharedGlossaryFile(false);
+                const data = {};
+                mergeGlossaryInto(data, existing);
+                if (!data[key] || !data[key].includes(syn)) { alert('Từ này nằm trong một file từ điển khác trong folder. Hãy mở file đó và sửa trực tiếp.'); return; }
+                data[key] = data[key].filter(x => x !== syn);
+                if (!data[key].length) delete data[key];
+                await writeSharedGlossaryFile(fh, data);
+                if (folderGlossary[key]) {
+                    folderGlossary[key] = folderGlossary[key].filter(x => x !== syn);
+                    if (!folderGlossary[key].length) delete folderGlossary[key];
+                }
+                rebuildPhraseGlossary();
+                if (window.renderGlossaryManager) window.renderGlossaryManager();
+            } catch (e) { alert('Không xóa được: ' + (e && e.message ? e.message : e)); }
+        }
+
+        // Hộp quản lý "Từ điển của tôi": xem, xóa, xuất/nhập file để chia sẻ
+        function openGlossaryManager() {
+            let overlay = document.getElementById('glossaryOverlay');
+            if (overlay) overlay.remove();
+            overlay = document.createElement('div');
+            overlay.id = 'glossaryOverlay';
+            overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:99999;display:flex;align-items:center;justify-content:center;padding:20px;';
+            document.body.appendChild(overlay);
+            const render = () => {
+                const rows = Object.entries(customGlossary);
+                window.glossaryRows = rows;
+                const sharedRows = Object.entries(folderGlossary);
+                window.sharedGlossaryRows = sharedRows;
+                const chip = (x, handler) => `<span class="term-chip" style="display:inline-flex;align-items:center;gap:3px;background:#2a3b4a;border:1px solid #3c5368;border-radius:10px;padding:1px 7px;font-size:12px;margin:2px;">${escapeHtml(x)}<button type="button" style="background:transparent;border:none;color:#ff8a80;cursor:pointer;" onclick="${handler}">✖</button></span>`;
+                overlay.innerHTML = `<div style="background:#1b1f24;color:#e6e6e6;border:1px solid #3c4a57;border-radius:8px;max-width:720px;width:100%;max-height:85vh;overflow:auto;padding:16px;">
+                    <div style="font-weight:bold;color:#5bc0be;margin-bottom:6px;">📘 Từ điển của tôi</div>
+                    <div style="font-size:12px;color:#aaa;line-height:1.5;margin-bottom:8px;">Bấm ➕ dưới ô từ khóa để dạy tool. Khi bật chia sẻ, từ mới tự ghi vào file <b>tu-dien-hvac.json</b> trong folder tài liệu. Cả nhóm bấm <b>Làm mới</b> là có, không cần gửi file.</div>
+                    <label style="display:flex;gap:6px;align-items:center;font-size:12px;margin-bottom:10px;"><input type="checkbox" id="glShare" ${isGlossarySharingOn() ? 'checked' : ''}> Tự chia sẻ từ mới cho cả nhóm (ghi vào folder tài liệu)</label>
+                    ${sharedRows.length ? `<div style="font-weight:bold;color:#9ccc9c;margin:6px 0 2px;">Từ điển chung của nhóm (${sharedRows.length})</div>` + sharedRows.map(([k, list], i) => `<div style="border-top:1px solid #2c3640;padding:6px 0;"><b style="color:#fff;">${escapeHtml(k)}</b> <span style="color:#888;">→</span> ${list.map((x, j) => chip(x, `removeSharedGlossarySyn(${i},${j})`)).join('')}</div>`).join('') : ''}
+                    ${rows.length ? '<div style="font-weight:bold;color:#ffb74d;margin:10px 0 2px;">Từ điển riêng trên máy này</div>' : ''}
+                    ${rows.length ? rows.map(([k, list], i) => `<div style="border-top:1px solid #2c3640;padding:6px 0;"><b style="color:#fff;">${escapeHtml(k)}</b> <span style="color:#888;">→</span> ${list.map((x, j) => `<span class="term-chip" style="display:inline-flex;align-items:center;gap:3px;background:#2a3b4a;border:1px solid #3c5368;border-radius:10px;padding:1px 7px;font-size:12px;margin:2px;">${escapeHtml(x)}<button type="button" style="background:transparent;border:none;color:#ff8a80;cursor:pointer;" onclick="removeGlossarySyn(${i},${j})">✖</button></span>`).join('')}</div>`).join('') : '<div style="color:#888;padding:8px 0;">Chưa có từ riêng nào trên máy này. Gõ từ khóa, tìm kiếm, rồi dùng ô "Dạy tool" dưới ô từ khóa.</div>'}
+                    <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;">
+                        <button class="btn-card" id="glExport" style="padding:5px 12px; background: #107c41; color: #fff; font-weight: bold;">⬇️ Xuất Excel</button>
+                        <button class="btn-card" id="glImport" style="padding:5px 12px; background: #217346; color: #fff; font-weight: bold;">📗 Nhập từ vựng từ Excel / JSON</button>
+<input type="file" id="glFile" accept=".xlsx,.xls,.csv,.json" style="display:none;">
+                        <button class="btn-card" id="glClose" style="padding:5px 12px;margin-left:auto;">Đóng</button>
+                    </div></div>`;
+                overlay.querySelector('#glClose').onclick = () => overlay.remove();
+                overlay.querySelector('#glShare').onchange = e => { setGlossarySharing(e.target.checked); shareGlossaryDeniedThisSession = false; };
+                // --- BẮT ĐẦU ĐOẠN CODE MỚI ---
+                overlay.querySelector('#glExport').onclick = () => {
+                    const combinedGlossary = {};
+                    mergeGlossaryInto(combinedGlossary, folderGlossary);
+                    mergeGlossaryInto(combinedGlossary, customGlossary);
+
+                    let maxSynonyms = 4;
+                    const dataRows = [];
+                    Object.entries(combinedGlossary).forEach(([key, synonyms]) => {
+                        if (synonyms.length > maxSynonyms) maxSynonyms = synonyms.length;
+                        dataRows.push([key, ...synonyms]);
+                    });
+
+                    const wb = XLSX.utils.book_new();
+                    const ws = {};
+
+                    // Dòng 1: Ghi chú
+                    ws['A1'] = { 
+                        v: "💡 HƯỚNG DẪN: Gõ 'Từ khóa chính' vào cột A. Gõ các 'Từ đồng nghĩa' vào cột B, C, D... Để trống ô không sao.", 
+                        t: 's', 
+                        s: { font: { italic: true, color: { rgb: "555555" }, sz: 11 }, alignment: { vertical: "center" } } 
+                    };
+                    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: maxSynonyms } }];
+                    
+                    // Dòng 2: Tiêu đề
+                    const headers = ["TỪ KHÓA CHÍNH (Cột A)"];
+                    for(let i=1; i<=maxSynonyms; i++) headers.push(`Từ đồng nghĩa ${i}`);
+                    
+                    headers.forEach((h, i) => {
+                        const cellRef = XLSX.utils.encode_cell({r: 1, c: i});
+                        ws[cellRef] = {
+                            v: h, t: 's',
+                            s: { 
+                                font: { bold: true, color: { rgb: "FFFFFF" }, sz: 11 }, 
+                                fill: { fgColor: { rgb: i === 0 ? "107C41" : "217346" } },
+                                alignment: { horizontal: "center", vertical: "center" },
+                                border: { top: {style:"thin", color:{rgb:"DDDDDD"}}, bottom: {style:"thin", color:{rgb:"DDDDDD"}}, left: {style:"thin", color:{rgb:"DDDDDD"}}, right: {style:"thin", color:{rgb:"DDDDDD"}} }
+                            }
+                        };
+                    });
+
+                    // Dữ liệu mẫu nếu từ điển rỗng
+                    if (dataRows.length === 0) dataRows.push(["(Ví dụ: ống đồng)", "piping", "gas pipe", "liquid pipe"]);
+
+                    // Dữ liệu từ vựng
+                    dataRows.forEach((row, rIdx) => {
+                        for(let cIdx = 0; cIdx <= maxSynonyms; cIdx++) {
+                            const val = row[cIdx] || "";
+                            if (val) {
+                                const cellRef = XLSX.utils.encode_cell({r: rIdx + 2, c: cIdx});
+                                ws[cellRef] = { 
+                                    v: val, t: 's',
+                                    s: {
+                                        font: { bold: cIdx === 0, color: { rgb: cIdx === 0 ? "1F4E78" : "000000" } },
+                                        fill: { fgColor: { rgb: rIdx % 2 === 0 ? "F9FBF9" : "FFFFFF" } },
+                                        border: { bottom: { style: "dotted", color: { rgb: "CCCCCC" } } },
+                                        alignment: { vertical: "center" }
+                                    }
+                                };
+                            }
+                        }
+                    });
+
+                    // Format kích thước cột
+                    ws['!ref'] = XLSX.utils.encode_range({ s: {r:0, c:0}, e: {r: dataRows.length + 1, c: maxSynonyms} });
+                    const cols = [{ wch: 30 }];
+                    for(let i=1; i<=maxSynonyms; i++) cols.push({ wch: 22 });
+                    ws['!cols'] = cols;
+                    ws['!rows'] = [{ hpt: 30 }, { hpt: 35 }];
+
+                    XLSX.utils.book_append_sheet(wb, ws, "Tu_Vung_HVAC");
+                    XLSX.writeFile(wb, "Tu_Vung_HVAC.xlsx");
+                };
+
+                overlay.querySelector('#glImport').onclick = () => overlay.querySelector('#glFile').click();
+                
+                overlay.querySelector('#glFile').onchange = async (e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (!f) return;
+                    
+                    try {
+                        let newData = {};
+                        if (f.name.toLowerCase().endsWith('.json')) {
+                            newData = JSON.parse(await f.text());
+                        } else if (/\.(xlsx|xls|csv)$/i.test(f.name)) {
+                            const arrayBuffer = await f.arrayBuffer();
+                            const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+                            
+                            rows.forEach(row => {
+                                const key = String(row[0] || '').trim();
+                                // BỎ QUA 2 DÒNG TIÊU ĐỀ
+                                if (key && !key.toUpperCase().includes('HƯỚNG DẪN') && !key.toUpperCase().includes('TỪ KHÓA CHÍNH')) {
+                                    const synonyms = row.slice(1).map(x => String(x || '').trim()).filter(Boolean);
+                                    if (synonyms.length > 0) newData[key] = synonyms;
+                                }
+                            });
+                        } else {
+                            throw new Error("Chỉ hỗ trợ file .json hoặc .xlsx");
+                        }
+
+                        const isShared = document.getElementById('glShare').checked;
+                        if (isShared && sourceFolderHandle) {
+                            if (!(await ensureFolderWritable())) {
+                                alert("⚠️ Trình duyệt chưa cấp quyền ghi vào thư mục. Hãy cấp quyền và thử lại.");
+                                return;
+                            }
+                            const { fh, existing } = await readSharedGlossaryFile(true);
+                            const merged = {};
+                            mergeGlossaryInto(merged, existing);
+                            mergeGlossaryInto(merged, newData);
+                            await writeSharedGlossaryFile(fh, merged);
+                            mergeGlossaryInto(folderGlossary, newData);
+                            alert(`✅ Đã thêm ${Object.keys(newData).length} từ khóa vào TỪ ĐIỂN CHUNG.`);
+                        } else {
+                            mergeGlossaryInto(customGlossary, newData);
+                            saveCustomGlossary();
+                            alert(`✅ Đã thêm ${Object.keys(newData).length} từ khóa vào TỪ ĐIỂN CÁ NHÂN.`);
+                        }
+                        rebuildPhraseGlossary(); 
+                        render();
+                    }
+                    catch (err) { alert('❌ Lỗi khi đọc file: ' + (err && err.message ? err.message : err)); }
+                    e.target.value = ''; // Reset để chọn lại file cũ không bị lỗi
+                };
+                // --- KẾT THÚC ĐOẠN CODE MỚI ---
+                overlay.querySelector('#glImport').onclick = () => overlay.querySelector('#glFile').click();
+                // Nâng cấp: Cho phép up file JSON và EXCEL, tự động lưu vào TỪ ĐIỂN CHUNG
+                overlay.querySelector('#glFile').onchange = async (e) => {
+                    const f = e.target.files && e.target.files[0];
+                    if (!f) return;
+                    
+                    try {
+                        let newData = {};
+                        
+                        // 1. Đọc file (Hỗ trợ cả JSON và Excel)
+                        if (f.name.toLowerCase().endsWith('.json')) {
+                            newData = JSON.parse(await f.text());
+                        } 
+                        else if (/\.(xlsx|xls|csv)$/i.test(f.name)) {
+                            // Đọc từ vựng từ file Excel (Cột A là từ khóa chính, Cột B, C, D... là từ đồng nghĩa)
+                            const arrayBuffer = await f.arrayBuffer();
+                            const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const rows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
+                            
+                            rows.forEach(row => {
+                                const key = String(row[0] || '').trim();
+                                if (key) {
+                                    const synonyms = row.slice(1).map(x => String(x || '').trim()).filter(Boolean);
+                                    if (synonyms.length > 0) newData[key] = synonyms;
+                                }
+                            });
+                        } else {
+                            throw new Error("Chỉ hỗ trợ file .json hoặc .xlsx");
+                        }
+
+                        // 2. Kiểm tra xem có đang bật chia sẻ và đã chọn Folder chưa
+                        const isShared = document.getElementById('glShare').checked;
+                        
+                        if (isShared && sourceFolderHandle) {
+                            if (!(await ensureFolderWritable())) {
+                                alert("⚠️ Trình duyệt chưa cấp quyền ghi vào thư mục. Hãy cấp quyền và thử lại.");
+                                return;
+                            }
+                            
+                            // Đọc file dùng chung hiện tại
+                            const { fh, existing } = await readSharedGlossaryFile(true);
+                            const merged = {};
+                            
+                            // Gộp dữ liệu: Cũ + Mới
+                            mergeGlossaryInto(merged, existing);
+                            mergeGlossaryInto(merged, newData);
+                            
+                            // Ghi đè file dùng chung (Mọi người sẽ nhận được)
+                            await writeSharedGlossaryFile(fh, merged);
+                            
+                            // Cập nhật RAM máy người đang up
+                            mergeGlossaryInto(folderGlossary, newData);
+                            alert(`✅ Đã thêm ${Object.keys(newData).length} từ khóa vào TỪ ĐIỂN CHUNG.\n\nMọi người trong nhóm chỉ cần bấm "Làm mới & lập chỉ mục" là sẽ nhận được từ vựng mới!`);
+                        } else {
+                            // Lưu vào máy cá nhân nếu không dùng chung ổ
+                            mergeGlossaryInto(customGlossary, newData);
+                            saveCustomGlossary();
+                            alert(`✅ Đã thêm ${Object.keys(newData).length} từ khóa vào TỪ ĐIỂN CÁ NHÂN trên máy này.`);
+                        }
+
+                        rebuildPhraseGlossary(); 
+                        render();
+                    }
+                    catch (err) { 
+                        alert('❌ Lỗi khi đọc file từ điển: ' + (err && err.message ? err.message : err)); 
+                    }
+                    // Reset input để up file cùng tên lần 2 vẫn nhận
+                    e.target.value = '';
+                };
+            };
+            overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+            window.renderGlossaryManager = render;
+            render();
+        }
+        function removeGlossarySyn(i, j) {
+            const row = (window.glossaryRows || [])[i];
+            if (!row) return;
+            const [key, list] = row;
+            const next = list.filter((_, idx) => idx !== j);
+            if (next.length) customGlossary[key] = next; else delete customGlossary[key];
+            saveCustomGlossary();
+            rebuildPhraseGlossary();
+            if (window.renderGlossaryManager) window.renderGlossaryManager();
+        }
+        loadCustomGlossary();
+
         /* ================= HÀNG TỪ ĐỒNG NGHĨA (bấm ✖ để bỏ từ không cần) ================= */
         function renderTermChips(groups) {
             const box = document.getElementById('termChipsBox');
@@ -1468,8 +1858,8 @@
                 rows.push({ unit: g.unit, chips: [...best] });
             });
             const hasChips = rows.some(r => r.chips.length);
-            if (!hasChips && !excludedTermKeys.size) { box.style.display = 'none'; box.innerHTML = ''; return; }
-            let html = '<div class="tc-title">🔎 Đang tìm theo (bấm ✖ để bỏ từ không cần):</div>';
+            if (!lastChipQuery) { box.style.display = 'none'; box.innerHTML = ''; return; }
+            let html = `<div class="tc-title">🔎 Đang tìm theo${hasChips ? ' (bấm ✖ để bỏ từ không cần)' : ' (chưa có từ đồng nghĩa nào)'}:</div>`;
             rows.forEach(r => {
                 html += `<div class="tc-row"><span class="term-chip main">${escapeHtml(r.unit)}</span>` +
                     r.chips.map(([k, v]) => {
@@ -1478,6 +1868,8 @@
                     }).join('') + '</div>';
             });
             if (excludedTermKeys.size) html += `<div class="tc-restore">Đã bỏ ${excludedTermKeys.size} từ · <a href="#" onclick="restoreTermChips(); return false;">Khôi phục tất cả</a></div>`;
+            html += `<div class="tc-teach"><input id="teachInput" type="text" placeholder="Dạy tool: từ đồng nghĩa cho “${escapeHtml(glossaryKey(lastChipQuery))}” (vd: refnet, refnet joint)" onkeydown="if(event.key==='Enter'){event.preventDefault();teachTerm();}"><button type="button" onclick="teachTerm()">➕ Thêm</button></div>`;
+            html += `<div class="tc-restore"><a href="#" onclick="openGlossaryManager(); return false;">📘 Từ điển của tôi (${Object.keys(customGlossary).length}${Object.keys(folderGlossary).length ? ' + ' + Object.keys(folderGlossary).length + ' dùng chung' : ''})</a></div>`;
             box.innerHTML = html;
             box.style.display = 'block';
         }
@@ -1994,6 +2386,7 @@
                 const found = await collectFolderFiles(sourceFolderHandle);
                 allMasterFiles = found.pdfs;
                 officeFiles = found.offices;
+                await loadFolderGlossary(found.glossary);
                 parsedPdfDocCache = {}; currentPdfDoc = null; currentPdfKey = '';
 
                 updateStatusUI('⏳ Đang nạp chỉ mục đã lưu...');
@@ -2133,7 +2526,7 @@
         }
 
         async function collectFolderFiles(directoryHandle, prefix = '', out = null) {
-            out = out || { pdfs: [], offices: [] };
+            out = out || { pdfs: [], offices: [], glossary: [] };
             const rootName = sourceFolderHandle ? sourceFolderHandle.name : directoryHandle.name;
             try {
                 for await (const [name, entry] of directoryHandle.entries()) {
@@ -2144,6 +2537,7 @@
                             await collectFolderFiles(entry, currentRelPath, out);
                         } else {
                             const lower = name.toLowerCase();
+                            if (GLOSSARY_FILE_RE.test(name)) { out.glossary.push(await entry.getFile()); continue; }
                             const isPdf = lower.endsWith('.pdf');
                             const isOffice = /\.(xlsx|xlsm|xls|xlsb|ods|csv|docx)$/.test(lower);
                             if (!isPdf && !isOffice) continue;
@@ -2164,6 +2558,7 @@
             allMasterFiles = all.filter(file => file.name.toLowerCase().endsWith('.pdf') && !file.name.startsWith('~'));
             officeFiles = all.filter(file => /\.(xlsx|xlsm|xls|xlsb|ods|csv|docx)$/i.test(file.name) && !file.name.startsWith('~'));
             parsedPdfDocCache = {}; currentPdfDoc = null; currentPdfKey = '';
+            await loadFolderGlossary(all.filter(file => GLOSSARY_FILE_RE.test(file.name)));
             configureDocumentTypeFilter(); applyAllFilters(); 
             indexLoadPromise = loadIndexForFiles(allMasterFiles);
             await parseOfficeFiles(officeFiles);
