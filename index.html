@@ -2165,6 +2165,7 @@ var XLSX={};function make_xlsx_lib(a){a.version="0.18.5",a.style_version="1.2.0"
                 };
                 request.onsuccess = () => resolve(request.result);
                 request.onerror = () => reject(request.error);
+                request.onblocked = () => { try { updateStatusUI('⚠️ Tool đang mở ở tab khác (bản cũ). Hãy đóng các tab đó để tiếp tục nạp dữ liệu.'); } catch (e) {} };
             });
         }
 
@@ -2222,41 +2223,66 @@ var XLSX={};function make_xlsx_lib(a){a.version="0.18.5",a.style_version="1.2.0"
         function countIndexedFiles() { let n = 0; for (const f of allMasterFiles) if (hasIndex(f)) n++; return n; }
 
         function hydrateIndexPages(pages) {
-            return (pages || []).filter(p => p && p.pageNum).map(p => ({
-                pageNum: p.pageNum,
-                fullText: (p.fullText || '').normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' '),
-                lowerText: (p.fullText || '').normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' ').toLowerCase()
-            }));
+            return (pages || []).filter(p => p && p.pageNum).map(p => {
+                const fullText = (p.fullText || '').normalize('NFC').replace(/[\u00ad\u200b]/g, '').replace(/\s+/g, ' ');
+                return { pageNum: p.pageNum, fullText, lowerText: fullText.toLowerCase() };
+            });
         }
 
-        // Nạp toàn bộ chỉ mục đã lưu vào RAM (1 lần), có tận dụng cache cũ (v3) để KHÔNG phải quét lại
+        // Nạp chỉ mục đã lưu vào RAM: duyệt KHOÁ trước (rất nhẹ), chỉ đọc nội dung của các file đang có trong folder
         function loadIndexForFiles(files) {
             return (async () => {
                 try {
                     const want = new Map();
                     files.forEach(f => want.set(fileIdxKey(f), f));
+                    const legacyWanted = new Map();
+                    files.forEach(f => legacyWanted.set(legacyIdxKey(f), f));
                     const db = await getSharedDb();
 
+                    const toLoad = [], legacyFound = [];
                     await new Promise((resolve) => {
                         const tx = db.transaction('pdf_cache', 'readonly');
-                        const req = tx.objectStore('pdf_cache').openCursor(IDBKeyRange.bound(IDX_PREFIX, IDX_PREFIX + '\uffff'));
+                        const req = tx.objectStore('pdf_cache').openKeyCursor();
                         req.onsuccess = (e) => {
                             const cur = e.target.result;
                             if (!cur) return;
-                            const f = want.get(cur.key);
-                            if (f && cur.value && cur.value.sig === fileSig(f) && !hasIndex(f)) {
-                                pdfIndex.set(cur.key, { sig: cur.value.sig, pages: hydrateIndexPages(cur.value.pages) });
+                            const k = cur.key;
+                            if (typeof k === 'string') {
+                                const f = want.get(k);
+                                if (f && !hasIndex(f)) toLoad.push(k);
+                                else if (legacyWanted.has(k)) legacyFound.push(k);
                             }
                             cur.continue();
                         };
                         tx.oncomplete = resolve; tx.onerror = resolve; tx.onabort = resolve;
                     });
+
+                    const total = toLoad.length;
+                    for (let i = 0; i < total; i += 100) {
+                        const keys = toLoad.slice(i, i + 100);
+                        await new Promise((resolve) => {
+                            const tx = db.transaction('pdf_cache', 'readonly');
+                            const st = tx.objectStore('pdf_cache');
+                            keys.forEach(k => {
+                                const r = st.get(k);
+                                r.onsuccess = () => {
+                                    const f = want.get(k), v = r.result;
+                                    if (f && v && v.sig === fileSig(f) && !hasIndex(f)) {
+                                        try { pdfIndex.set(k, { sig: v.sig, pages: hydrateIndexPages(v.pages) }); } catch (err) {}
+                                    }
+                                };
+                            });
+                            tx.oncomplete = resolve; tx.onerror = resolve; tx.onabort = resolve;
+                        });
+                        if (total > 100) updateStatusUI(`⏳ Đang nạp chỉ mục đã lưu: ${Math.min(total, i + 100)}/${total} file...`);
+                        await new Promise(r => setTimeout(r, 0));   // nhường giao diện, không bị đơ
+                    }
                     updateStatusUI();
 
-                    // Di chuyển cache cũ (v3) sang chỉ mục mới
-                    const missing = files.filter(f => !hasIndex(f));
-                    for (let i = 0; i < missing.length; i += 40) {
-                        const batch = missing.slice(i, i + 40);
+                    // Di chuyển cache cũ (v3) sang chỉ mục mới — chỉ với file thật sự có bản cũ
+                    const missingLegacy = legacyFound.map(k => legacyWanted.get(k)).filter(f => f && !hasIndex(f));
+                    for (let i = 0; i < missingLegacy.length; i += 40) {
+                        const batch = missingLegacy.slice(i, i + 40);
                         const migrated = [];
                         await Promise.all(batch.map(async (f) => {
                             const old = await getCachedPdfText(legacyIdxKey(f));
@@ -2473,7 +2499,9 @@ var XLSX={};function make_xlsx_lib(a){a.version="0.18.5",a.style_version="1.2.0"
                 sourceFolderHandles = [picked];
                 await persistFolderHandles();
                 sourceFolderHandle = picked;   // folder đang chọn, dùng để chia sẻ từ điển
+                disarmReconnect();
                 await refreshSourceFiles(true, true);
+                startAutoIndex();
             } catch (error) {
                 if (error.name !== 'AbortError') document.getElementById('folderPicker').click();
             }
@@ -2603,7 +2631,37 @@ var XLSX={};function make_xlsx_lib(a){a.version="0.18.5",a.style_version="1.2.0"
             }
         }
 
+        // Tự động lập chỉ mục các file PDF mới/thay đổi (chạy nền; bấm nút xanh để dừng)
+        async function startAutoIndex() {
+            if (bgIndexing) return;
+            const btn = document.getElementById('btnRefreshSources');
+            try { await runBackgroundIndex(); }
+            catch (e) { console.warn('Lập chỉ mục tự động', e); }
+            finally { bgIndexing = false; if (btn) btn.innerText = REFRESH_BTN_IDLE; }
+        }
+
+        // Trình duyệt chưa nhớ quyền folder -> chờ cú bấm/phím đầu tiên trên trang để xin quyền (trình duyệt bắt buộc phải có thao tác người dùng)
+        let pendingReconnect = null;
+        function armReconnectOnFirstGesture() {
+            if (pendingReconnect) return;
+            pendingReconnect = async (ev) => {
+                if (ev && ev.target && ev.target.closest && ev.target.closest('#btnRefreshSources, .btn-upload, button[onclick^="resetAllSources"]')) { disarmReconnect(); return; }
+                disarmReconnect();
+                await refreshSourceFiles(false, true);
+                if (sourceFolderHandles.length && allMasterFiles.length) await startAutoIndex();
+            };
+            document.addEventListener('pointerdown', pendingReconnect, true);
+            document.addEventListener('keydown', pendingReconnect, true);
+        }
+        function disarmReconnect() {
+            if (!pendingReconnect) return;
+            document.removeEventListener('pointerdown', pendingReconnect, true);
+            document.removeEventListener('keydown', pendingReconnect, true);
+            pendingReconnect = null;
+        }
+
         async function userTriggerRefresh() {
+            disarmReconnect();
             const btn = document.getElementById('btnRefreshSources');
             // Bấm lại khi đang lập chỉ mục = dừng
             if (bgIndexing) { cancelBgIndex = true; if (btn) btn.innerText = '⏳ Đang dừng...'; return; }
@@ -2638,12 +2696,18 @@ var XLSX={};function make_xlsx_lib(a){a.version="0.18.5",a.style_version="1.2.0"
                 if (await loadSourceHandle('excel-files')) await removeSourceHandle('excel-files');
 
                 if (sourceFolderHandles.length) {
-                    updateStatusUI(`📁 Nguồn đã ghi nhớ: ${sourceFolderHandles.map(handle => handle.name).join(' · ')}.<br>👉 Bấm <b>[🔄 Làm mới & lập chỉ mục]</b> để nạp.`);
+                    updateStatusUI('⏳ Đang kết nối lại folder đã ghi nhớ...');
 
                     // Nếu trình duyệt còn nhớ quyền truy cập -> tự nạp luôn, không cần bấm gì
                     let anyGranted = false;
                     for (const handle of sourceFolderHandles) if (await ensureHandlePermission(handle, false)) anyGranted = true;
-                    if (anyGranted) await refreshSourceFiles(false, false);
+                    if (anyGranted) {
+                        await refreshSourceFiles(false, false);
+                        startAutoIndex();
+                    } else {
+                        updateStatusUI('👆 Bấm chuột vào bất kỳ đâu trên trang để kết nối lại folder. Khi trình duyệt hỏi quyền, chọn "Cho phép mỗi lần truy cập" (Allow on every visit) để lần sau tự nạp luôn.');
+                        armReconnectOnFirstGesture();
+                    }
                 }
             } catch(e) {}
         }
@@ -2815,6 +2879,7 @@ var XLSX={};function make_xlsx_lib(a){a.version="0.18.5",a.style_version="1.2.0"
             refreshAutocompleteSuggestions();
             initVocabulary();
             updateStatusUI('Folder đã nạp xong.');
+            startAutoIndex();
         }
 
         /* ================= BỘ CHỌN NHIỀU THƯ MỤC CON (CÂY THƯ MỤC KIỂU FILE EXPLORER) =================
